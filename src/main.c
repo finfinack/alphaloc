@@ -419,68 +419,8 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     }
     else
     {
-      ESP_LOGI(TAG_BLE_CONN, "Notification register successfully");
+      ESP_LOGI(TAG_BLE_CONN, "Notification register successful");
     }
-
-    // uint16_t count = 0;
-    // uint16_t offset = 0;
-    // uint16_t notify_en = 1;
-    // esp_gatt_status_t ret_status = esp_ble_gattc_get_attr_count(gattc_if,
-    //                                                             gl_profile_tab[PROFILE_A_APP_ID].conn_id,
-    //                                                             ESP_GATT_DB_DESCRIPTOR,
-    //                                                             gl_profile_tab[PROFILE_A_APP_ID].service_start_handle,
-    //                                                             gl_profile_tab[PROFILE_A_APP_ID].service_end_handle,
-    //                                                             p_data->reg_for_notify.handle,
-    //                                                             &count);
-    // if (ret_status != ESP_GATT_OK)
-    // {
-    //   ESP_LOGE(TAG_BLE_CONN, "esp_ble_gattc_get_attr_count error, %d", __LINE__);
-    //   break;
-    // }
-
-    // if (count > 0)
-    // {
-    //   descr_elem_result = malloc(sizeof(esp_gattc_descr_elem_t) * count);
-    //   if (!descr_elem_result)
-    //   {
-    //     ESP_LOGE(TAG_BLE_CONN, "malloc error, gattc no mem");
-    //     break;
-    //   }
-    //   else
-    //   {
-    //     ret_status = esp_ble_gattc_get_all_descr(gattc_if,
-    //                                              gl_profile_tab[PROFILE_A_APP_ID].conn_id,
-    //                                              p_data->reg_for_notify.handle,
-    //                                              descr_elem_result,
-    //                                              &count,
-    //                                              offset);
-    //     if (ret_status != ESP_GATT_OK)
-    //     {
-    //       ESP_LOGE(TAG_BLE_CONN, "esp_ble_gattc_get_all_descr error, %d", __LINE__);
-    //       free(descr_elem_result);
-    //       descr_elem_result = NULL;
-    //       break;
-    //     }
-
-    //     for (int i = 0; i < count; ++i)
-    //     {
-    //       if (descr_elem_result[i].uuid.len == ESP_UUID_LEN_16 && descr_elem_result[i].uuid.uuid.uuid16 == ESP_GATT_UUID_CHAR_CLIENT_CONFIG)
-    //       {
-    //         esp_ble_gattc_write_char_descr(gattc_if,
-    //                                        gl_profile_tab[PROFILE_A_APP_ID].conn_id,
-    //                                        descr_elem_result[i].handle,
-    //                                        sizeof(notify_en),
-    //                                        (uint8_t *)&notify_en,
-    //                                        ESP_GATT_WRITE_TYPE_RSP,
-    //                                        ESP_GATT_AUTH_REQ_NONE);
-
-    //         break;
-    //       }
-    //     }
-    //   }
-    //   free(descr_elem_result);
-    //   descr_elem_result = NULL;
-    // }
 
     break;
   }
