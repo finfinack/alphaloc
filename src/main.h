@@ -56,23 +56,23 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
 
 struct gattc_profile_inst
 {
-  esp_gattc_cb_t gattc_cb;
-  uint16_t gattc_if;
-  uint16_t app_id;
-  uint16_t conn_id;
+    esp_gattc_cb_t gattc_cb;
+    uint16_t gattc_if;
+    uint16_t app_id;
+    uint16_t conn_id;
 
-  uint16_t location_service_start_handle;
-  uint16_t location_service_end_handle;
-  uint16_t feature_char_handle;
-  uint16_t location_char_handle;
-  uint16_t notify_char_handle;
+    uint16_t location_service_start_handle;
+    uint16_t location_service_end_handle;
+    uint16_t feature_char_handle;
+    uint16_t location_char_handle;
+    uint16_t notify_char_handle;
 
-  uint16_t remote_service_start_handle;
-  uint16_t remote_service_end_handle;
-  uint16_t lock_char_handle;
-  uint16_t update_char_handle;
+    uint16_t remote_service_start_handle;
+    uint16_t remote_service_end_handle;
+    uint16_t lock_char_handle;
+    uint16_t update_char_handle;
 
-  esp_bd_addr_t remote_bda;
+    esp_bd_addr_t remote_bda;
 };
 
 /* One gatt-based profile one app_id and one gattc_if, this array will store the gattc_if returned by ESP_GATTS_REG_EVT */
@@ -181,14 +181,14 @@ static const uint8_t CAM_REMOTE_SHUTTER_ACTIVE[] = {0x02, 0xA0, 0x20};
 // Endian helpers
 static inline void putBE16(uint8_t *p, uint16_t v)
 {
-  p[0] = (v >> 8) & 0xFF;
-  p[1] = v & 0xFF;
+    p[0] = (v >> 8) & 0xFF;
+    p[1] = v & 0xFF;
 }
 
 static inline void putBE32(uint8_t *p, uint32_t v)
 {
-  p[0] = (v >> 24) & 0xFF;
-  p[1] = (v >> 16) & 0xFF;
-  p[2] = (v >> 8) & 0xFF;
-  p[3] = v & 0xFF;
+    p[0] = (v >> 24) & 0xFF;
+    p[1] = (v >> 16) & 0xFF;
+    p[2] = (v >> 8) & 0xFF;
+    p[3] = v & 0xFF;
 }

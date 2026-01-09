@@ -188,7 +188,7 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
   case ESP_GATTC_CFG_MTU_EVT:
     /* MTU has been set */
     ESP_LOGI(TAG_BLE_CONN, "MTU exchange, status %d, MTU %d", param->cfg_mtu.status, param->cfg_mtu.mtu);
-    esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &CAM_LOCATION_SERVICE);
+    esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, NULL);
     break;
 
   case ESP_GATTC_SEARCH_RES_EVT:
@@ -214,7 +214,7 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         ESP_LOGI(TAG_BLE_CONN, "Found remote service");
         gl_profile_tab[PROFILE_A_APP_ID].remote_service_start_handle = p_data->search_res.start_handle;
         gl_profile_tab[PROFILE_A_APP_ID].remote_service_end_handle = p_data->search_res.end_handle;
-        // get_remote_service = true;
+        get_remote_service = true;
         break;
       }
       else
@@ -338,7 +338,8 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         ESP_LOGI(TAG_BLE_CONN, "Reading attr count: No results");
       }
     }
-    else if (get_remote_service)
+
+    if (get_remote_service)
     {
       ESP_LOGD(TAG_BLE_CONN, "Reading Remote Service attr");
 
@@ -520,8 +521,6 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
 
     if (param->read.handle == gl_profile_tab[PROFILE_A_APP_ID].feature_char_handle)
     {
-      esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &CAM_REMOTE_SERVICE);
-
       esp_ble_gattc_write_char(
           gl_profile_tab[PROFILE_A_APP_ID].gattc_if,
           gl_profile_tab[PROFILE_A_APP_ID].conn_id,
