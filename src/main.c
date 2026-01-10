@@ -801,24 +801,24 @@ static void location_sender_task(void *arg)
   }
 }
 
-void app_main(void)
+void init_nvs(void)
 {
-  esp_log_level_set("*", ESP_LOG_INFO);
-  ESP_LOGI(TAG, "Starting AlphaLoc");
-  esp_err_t ret;
-
-  // Initialize NVS.
-  ret = nvs_flash_init();
+  ESP_LOGI(TAG_NVS, "Initializing NVS...");
+  esp_err_t ret = nvs_flash_init();
   if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
   {
     ESP_ERROR_CHECK(nvs_flash_erase());
     ret = nvs_flash_init();
   }
   ESP_ERROR_CHECK(ret);
+}
 
-  // BLE Setup
+void init_ble(void)
+{
+  ESP_LOGI(TAG_BLE_INIT, "Initializing BLE...");
   ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT)); // We need BLE only
 
+  esp_err_t ret;
   esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
   ret = esp_bt_controller_init(&bt_cfg);
   if (ret)
@@ -883,11 +883,45 @@ void app_main(void)
   and the init key means which key you can distribute to the slave. */
   esp_ble_gap_set_security_param(ESP_BLE_SM_SET_INIT_KEY, &init_key, sizeof(uint8_t));
   esp_ble_gap_set_security_param(ESP_BLE_SM_SET_RSP_KEY, &rsp_key, sizeof(uint8_t));
+}
 
+void init_gps(void)
+{
+  ESP_LOGI(TAG_GPS, "Initializing GPS...");
+  // TODO
+}
+
+void app_main(void)
+{
+  esp_log_level_set("*", ESP_LOG_INFO);
+  ESP_LOGI(TAG, "Starting AlphaLoc");
+
+  //
+  // NVS
+  //
+  init_nvs();
+
+  //
+  // BLE
+  //
+  init_ble();
+
+  //
+  // GPS
+  //
+  init_gps();
+
+  //
+  // Location sender
+  //
   xTaskCreate(location_sender_task, "location_sender", 4096, NULL, 5, NULL);
 
+  // TODO: Determine why the app ever ends (aren't always timers or callbacks running?) and
+  //       fix this in a more idiomatic way for ESP32.
+  ESP_LOGI(TAG, "Main ended, entering sleep loop to avoid program stop...");
   while (1)
   {
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    ESP_LOGD(TAG, "Sleep loop tick");
+    vTaskDelay(pdMS_TO_TICKS(MAIN_SLEEP_TIME));
   }
 }

@@ -14,6 +14,8 @@
 #include "esp_timer.h"
 
 static const char *TAG = "MAIN";
+static const char *TAG_NVS = "NVS";
+static const char *TAG_GPS = "GPS";
 static const char *TAG_BLE_INIT = "BLE_INIT";
 static const char *TAG_BLE_SCAN = "BLE_SCAN";
 static const char *TAG_BLE_BOND = "BLE_BOND";
@@ -32,6 +34,7 @@ uint8_t oob_support = ESP_BLE_OOB_DISABLE;
 #define PROFILE_A_APP_ID 0
 #define INVALID_HANDLE 0
 
+#define MAIN_SLEEP_TIME 5000                      // ms
 #define BLE_SCAN_TIME 5                           // the unit of the duration is second, 0 means scan permanently
 #define BLE_RESCAN_PERIOD_WHEN_NOT_CONNECTED 3000 // ms
 #define BLE_LOCATION_RETRANSMIT 5000              // ms
