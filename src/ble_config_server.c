@@ -26,6 +26,7 @@ typedef enum {
   FIELD_WIFI_PASS,
   FIELD_AP_SSID,
   FIELD_AP_PASS,
+  FIELD_MAX_GPS_AGE,
 } field_id_t;
 
 static app_config_t *s_cfg;
@@ -63,6 +64,9 @@ static const ble_uuid128_t k_chr_ap_ssid_uuid =
 static const ble_uuid128_t k_chr_ap_pass_uuid =
     BLE_UUID128_INIT(0xB1, 0xF0, 0xB4, 0xD5, 0x79, 0x7B, 0x5A, 0x9E,
                      0x5B, 0x4F, 0x4A, 0x1F, 0x0A, 0x00, 0x7E, 0xA1);
+static const ble_uuid128_t k_chr_max_gps_age_uuid =
+    BLE_UUID128_INIT(0xB1, 0xF0, 0xB4, 0xD5, 0x79, 0x7B, 0x5A, 0x9E,
+                     0x5B, 0x4F, 0x4A, 0x1F, 0x0B, 0x00, 0x7E, 0xA1);
 
 static void copy_str_field(char *dst, size_t dst_len, const char *src, size_t src_len) {
   size_t copy_len = src_len < dst_len - 1 ? src_len : dst_len - 1;
@@ -124,6 +128,10 @@ static int gatt_access_cb(uint16_t conn_handle, uint16_t attr_handle,
       case FIELD_AP_PASS:
         value = s_cfg->ap_pass;
         break;
+      case FIELD_MAX_GPS_AGE:
+        snprintf(num_buf, sizeof(num_buf), "%u", (unsigned)s_cfg->max_gps_age_s);
+        value = num_buf;
+        break;
       default:
         return BLE_ATT_ERR_UNLIKELY;
     }
@@ -181,6 +189,14 @@ static int gatt_access_cb(uint16_t conn_handle, uint16_t attr_handle,
       case FIELD_AP_PASS:
         copy_str_field(s_cfg->ap_pass, sizeof(s_cfg->ap_pass), buf, strlen(buf));
         break;
+      case FIELD_MAX_GPS_AGE: {
+        uint16_t max_age = 0;
+        if (!parse_u16_field(buf, &max_age)) {
+          return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+        }
+        s_cfg->max_gps_age_s = max_age;
+        break;
+      }
       default:
         return BLE_ATT_ERR_UNLIKELY;
     }
@@ -233,6 +249,10 @@ static const struct ble_gatt_svc_def gatt_svcs[] = {
              .access_cb = gatt_access_cb,
              .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
              .arg = (void *)FIELD_AP_PASS},
+            {.uuid = &k_chr_max_gps_age_uuid.u,
+             .access_cb = gatt_access_cb,
+             .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
+             .arg = (void *)FIELD_MAX_GPS_AGE},
             {0},
         },
     },

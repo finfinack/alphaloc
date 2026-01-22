@@ -14,7 +14,7 @@ void config_set_defaults(app_config_t *cfg)
 {
   memset(cfg, 0, sizeof(*cfg));
   cfg->gps_interval_ms = 5000;
-  cfg->max_gps_age_s = 180;
+  cfg->max_gps_age_s = 300;
   cfg->config_window_s = 300;
   cfg->ble_passkey = 123456;
   cfg->tz_offset_min = 60;

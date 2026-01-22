@@ -96,6 +96,7 @@ static esp_err_t handle_root(httpd_req_t *req) {
            "<label>WiFi pass (STA)</label><input name=\"wifi_pass\" value=\"%s\">"
            "<label>AP SSID</label><input name=\"ap_ssid\" value=\"%s\">"
            "<label>AP pass</label><input name=\"ap_pass\" value=\"%s\">"
+           "<label>Max GPS age (seconds)</label><input name=\"max_age_s\" value=\"%u\">"
            "<button type=\"submit\">Save</button>"
            "</form>"
            "<p>Reboot the device after saving to apply network changes.</p>"
@@ -109,7 +110,8 @@ static esp_err_t handle_root(httpd_req_t *req) {
            s_cfg->wifi_ssid,
            s_cfg->wifi_pass,
            s_cfg->ap_ssid,
-           s_cfg->ap_pass);
+           s_cfg->ap_pass,
+           (unsigned)s_cfg->max_gps_age_s);
 
   httpd_resp_set_type(req, "text/html");
   return httpd_resp_send(req, page, HTTPD_RESP_USE_STRLEN);
@@ -177,6 +179,12 @@ static esp_err_t handle_save(httpd_req_t *req) {
   if (value[0] != '\0') {
     strncpy(s_cfg->ap_pass, value, sizeof(s_cfg->ap_pass) - 1);
     s_cfg->ap_pass[sizeof(s_cfg->ap_pass) - 1] = '\0';
+  }
+
+  form_get(body, "max_age_s", value, sizeof(value));
+  uint16_t max_age = 0;
+  if (parse_u16(value, &max_age)) {
+    s_cfg->max_gps_age_s = max_age;
   }
 
   config_save(s_cfg);
