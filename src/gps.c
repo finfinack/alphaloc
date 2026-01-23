@@ -224,6 +224,7 @@ static void gps_task(void *arg) {
           continue;
         }
         line_buf[line_len] = '\0';
+        ESP_LOGI(TAG, "NMEA: %s", line_buf);
         gps_fix_t fix = {0};
         if (strncmp(line_buf, "$GPRMC", 6) == 0 || strncmp(line_buf, "$GNRMC", 6) == 0) {
           if (parse_rmc(line_buf, &fix)) {

@@ -113,6 +113,7 @@ static void config_window_task(void *arg)
 
 void app_main(void)
 {
+  ESP_LOGI(TAG, "AlphaLoc starting");
   esp_err_t err = nvs_flash_init();
   if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND)
   {
