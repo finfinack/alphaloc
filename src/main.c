@@ -13,8 +13,12 @@
 #include "wifi_web.h"
 
 #define GPS_UART_NUM UART_NUM_1
-#define GPS_UART_TX_PIN 5
-#define GPS_UART_RX_PIN 4
+// ESP32 (Feather V2)
+#define GPS_UART_TX_PIN 8
+#define GPS_UART_RX_PIN 7
+// ESP32-C6 (DFRobot)
+// #define GPS_UART_TX_PIN 5
+// #define GPS_UART_RX_PIN 4
 #define GPS_UART_BAUD 9600
 
 #ifndef ALPHALOC_FAKE_GPS
