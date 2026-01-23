@@ -21,12 +21,12 @@
 #endif
 
 #define GPS_UART_NUM UART_NUM_1
-// ESP32 (Feather V2)
-#define GPS_UART_TX_PIN 8
-#define GPS_UART_RX_PIN 7
-// ESP32-C6 (DFRobot)
-// #define GPS_UART_TX_PIN 5
-// #define GPS_UART_RX_PIN 4
+#ifndef GPS_UART_TX_PIN
+#error "GPS_UART_TX_PIN must be set via build_flags"
+#endif
+#ifndef GPS_UART_RX_PIN
+#error "GPS_UART_RX_PIN must be set via build_flags"
+#endif
 #define GPS_UART_BAUD 9600
 
 #ifndef ALPHALOC_FAKE_GPS
