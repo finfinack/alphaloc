@@ -4,13 +4,21 @@
 #include "ble_config_server.h"
 #include "config.h"
 #include "esp_log.h"
+#include "esp_rom_sys.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "gps.h"
 #include "nvs_flash.h"
 #include "driver/uart.h"
+
+#ifndef ALPHALOC_WIFI_WEB
+#define ALPHALOC_WIFI_WEB 1
+#endif
+
+#if ALPHALOC_WIFI_WEB
 #include "wifi_web.h"
+#endif
 
 #define GPS_UART_NUM UART_NUM_1
 // ESP32 (Feather V2)
@@ -104,10 +112,14 @@ static void config_window_task(void *arg)
 {
   app_config_t *cfg = (app_config_t *)arg;
   ble_config_server_start();
+#if ALPHALOC_WIFI_WEB
   wifi_web_start(cfg);
+#endif
   vTaskDelay(pdMS_TO_TICKS(cfg->config_window_s * 1000));
   ble_config_server_stop();
+#if ALPHALOC_WIFI_WEB
   wifi_web_stop();
+#endif
   vTaskDelete(NULL);
 }
 
