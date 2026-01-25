@@ -100,18 +100,21 @@ Navigate to the device IP in your browser to access the config page.
 #### Method B: BLE Configuration
 
 You can use a generic BLE app (like nRF Connect) to write to the configuration service.
-- **Service UUID**: `B1F0B4D5-797B-5A9E-5B4F-4A1F01007EA1`
-- **Characteristics**:
-  - Camera Name Prefix: `B1F0B4D5-797B-5A9E-5B4F-4A1F02007EA1`
-  - Camera MAC Prefix: `B1F0B4D5-797B-5A9E-5B4F-4A1F03007EA1`
-  - TZ Offset (minutes): `B1F0B4D5-797B-5A9E-5B4F-4A1F04007EA1`
-  - DST Offset (minutes): `B1F0B4D5-797B-5A9E-5B4F-4A1F05007EA1`
-  - WiFi Mode (0=AP, 1=STA): `B1F0B4D5-797B-5A9E-5B4F-4A1F06007EA1`
-  - WiFi SSID (STA): `B1F0B4D5-797B-5A9E-5B4F-4A1F07007EA1`
-  - WiFi Password (STA): `B1F0B4D5-797B-5A9E-5B4F-4A1F08007EA1`
-  - AP SSID: `B1F0B4D5-797B-5A9E-5B4F-4A1F09007EA1`
-  - AP Password: `B1F0B4D5-797B-5A9E-5B4F-4A1F0A007EA1`
-  - Max GPS Age (seconds): `B1F0B4D5-797B-5A9E-5B4F-4A1F0B007EA1`
+
+**Service UUID**: `B1F0B4D5-797B-5A9E-5B4F-4A1F01007EA1`
+
+| Characteristic Name | UUID (Base `B1F0...`) | R/W | Type (Over BLE) | Description |
+| ------------------- | --------------------- | --- | --------------- | ----------- |
+| Camera Name Prefix  | `...02007EA1`         | R/W | String          | Camera name identifier |
+| Camera MAC Prefix   | `...03007EA1`         | R/W | String          | MAC address filter |
+| Timezone Offset     | `...04007EA1`         | R/W | String (Int)    | Minutes from UTC |
+| DST Offset          | `...05007EA1`         | R/W | String (Int)    | Daylight Savings offset (minutes) |
+| Wifi Mode           | `...06007EA1`         | R/W | String ("0"/"1")| 0=AP, 1=Station |
+| Wifi SSID           | `...07007EA1`         | R/W | String          | Station SSID |
+| Wifi Password       | `...08007EA1`         | R/W | String          | Station Password |
+| AP SSID             | `...09007EA1`         | R/W | String          | Access Point SSID |
+| AP Password         | `...0A007EA1`         | R/W | String          | Access Point Password |
+| Max GPS Age         | `...0B007EA1`         | R/W | String (Int)    | Max age of GPS lock in seconds |
 
 ## BLE Client Details (Camera Link)
 
