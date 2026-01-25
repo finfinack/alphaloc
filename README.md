@@ -26,10 +26,13 @@ You can easily adapt it to other ESP32 boards by modifying `platformio.ini`.
 ### 1. Initial Setup
 
 1. Connect your GPS module (e.g., GY-GPS6MV2) to the defined TX/RX pins.
+
 2. Flash the firmware using PlatformIO.
+
    ```bash
    pio run -e esp32c6 -t upload
    ```
+
 3. Power on the device.
 
 ### 2. Pairing with Camera
@@ -81,11 +84,13 @@ On startup, AlphaLoc enters a **Configuration Window** (default 5 minutes). Duri
 #### Method A: WiFi Web Interface
 
 By default, the device attempts to connect to a WiFi network.
+
 - **Default SSID**: `WiFi`
 - **Default Password**: `changeme`
 - **Mode**: TCP Station (Client)
 
 If you compile with `APP_WIFI_MODE_AP` (or change it via BLE/Code), it acts as an Access Point:
+
 - **AP SSID**: `AlphaLoc`
 - **AP Password**: `alphaloc1234`
 - **IP**: `192.168.4.1`
@@ -93,14 +98,86 @@ If you compile with `APP_WIFI_MODE_AP` (or change it via BLE/Code), it acts as a
 Navigate to the device IP in your browser to access the config page.
 
 #### Method B: BLE Configuration
+
 You can use a generic BLE app (like nRF Connect) to write to the configuration service.
 - **Service UUID**: `B1F0B4D5-797B-5A9E-5B4F-4A1F01007EA1`
 - **Characteristics**:
-  - Camera Configuration (Name/MAC prefix)
-  - WiFi Settings (SSID, Password, Mode)
-  - Timezone / DST offsets
+  - Camera Name Prefix: `B1F0B4D5-797B-5A9E-5B4F-4A1F02007EA1`
+  - Camera MAC Prefix: `B1F0B4D5-797B-5A9E-5B4F-4A1F03007EA1`
+  - TZ Offset (minutes): `B1F0B4D5-797B-5A9E-5B4F-4A1F04007EA1`
+  - DST Offset (minutes): `B1F0B4D5-797B-5A9E-5B4F-4A1F05007EA1`
+  - WiFi Mode (0=AP, 1=STA): `B1F0B4D5-797B-5A9E-5B4F-4A1F06007EA1`
+  - WiFi SSID (STA): `B1F0B4D5-797B-5A9E-5B4F-4A1F07007EA1`
+  - WiFi Password (STA): `B1F0B4D5-797B-5A9E-5B4F-4A1F08007EA1`
+  - AP SSID: `B1F0B4D5-797B-5A9E-5B4F-4A1F09007EA1`
+  - AP Password: `B1F0B4D5-797B-5A9E-5B4F-4A1F0A007EA1`
+  - Max GPS Age (seconds): `B1F0B4D5-797B-5A9E-5B4F-4A1F0B007EA1`
+
+## BLE Client Details (Camera Link)
+
+AlphaLoc acts as a BLE client to Sony cameras
+
+### Advertisement Filters
+
+- **Manufacturer data**: company ID `0x012D`, product ID `0x0003`
+- **Optional name prefix filter**: `camera_name_prefix` (if set)
+- **Optional MAC prefix filter**: `camera_mac_prefix` (if set)
+
+### Services and Identifiers
+
+AlphaLoc looks for two Sony services (UUIDs are built from 16-bit IDs using the Sony base UUID):
+
+```
+Sony base UUID (constructed):
+  00000000-0000-8000-ffff-ffff-ffff-ffff
+  with 16-bit words inserted at positions:
+    first = 0xDD00 / 0xFF00
+    second = 0xDD00 / 0xFF00
+```
+
+It accepts either 128-bit UUIDs or 16-bit UUIDs:
+- **Location Service**: `0xDD00`
+- **Remote Service**: `0xFF00`
+
+### Characteristic Discovery
+
+Within those services, AlphaLoc searches for:
+
+**Location Service (DD00)**
+
+- `0xDD11` (location write characteristic; used for sending GPS payloads)
+- `0xDD21` (flags; read to determine if TZ/DST are required)
+- `0xDD30`, `0xDD31` (time-related characteristics)
+
+**Remote Service (FF00)**
+
+- `0xFF02` (notification characteristic; CCCD `0x2902`)
+
+### Connection/Discovery Flow (simplified)
+
+```
+ADV (Sony) --> connect
+  |
+  +--> discover DD00 (Location Service)
+  |      +--> find DD11, DD21, DD30, DD31
+  |      +--> read DD21 flag byte
+  |      +--> enable location writes on DD11
+  |
+  +--> discover FF00 (Remote Service)
+         +--> find FF02
+         +--> find/guess CCCD (0x2902)
+         +--> enable notifications
+```
+
+### Sending Location
+
+Once services and characteristics are resolved:
+- Builds a Sony-compatible location payload
+- Writes to `DD11`
+- Enables FF02 notifications after first location write (if required)
 
 ## Configuration Options
+
 - **Camera Name Prefix**: Limits connection to cameras starting with this name (Default: "SonyA7").
 - **Timezone/DST**: Offset in minutes for timestamp correction.
 - **Max GPS Age**: How long to keep sending the last known location if GPS signal is lost.
