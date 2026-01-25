@@ -11,6 +11,11 @@
 #include "gps.h"
 #include "nvs_flash.h"
 #include "driver/uart.h"
+#include "driver/gpio.h"
+
+#ifdef ALPHALOC_NEOPIXEL_PIN
+#include "neopixel.h"
+#endif
 
 #ifndef ALPHALOC_WIFI_WEB
 #define ALPHALOC_WIFI_WEB 1
@@ -123,9 +128,85 @@ static void config_window_task(void *arg)
   vTaskDelete(NULL);
 }
 
+#ifdef ALPHALOC_NEOPIXEL_PIN
+static void status_led_task(void *arg)
+{
+  const app_config_t *cfg = (const app_config_t *)arg;
+  const uint8_t brightness = 8;
+  const TickType_t on_ms = pdMS_TO_TICKS(150);
+  const TickType_t off_ms = pdMS_TO_TICKS(150);
+  const TickType_t cycle_ms = pdMS_TO_TICKS(3000);
+
+  neopixel_init(ALPHALOC_NEOPIXEL_PIN, brightness);
+
+  while (true)
+  {
+    TickType_t cycle_start = xTaskGetTickCount();
+
+    // Camera status: green if connected, red if not.
+    bool camera_connected = ble_client_is_connected();
+    if (camera_connected)
+    {
+      neopixel_set_rgb(0, 255, 0);
+    }
+    else
+    {
+      neopixel_set_rgb(255, 0, 0);
+    }
+    vTaskDelay(on_ms);
+    neopixel_set_rgb(0, 0, 0);
+    vTaskDelay(off_ms);
+
+    // GPS status: green if fix is valid, red if not.
+    gps_fix_t fix;
+    bool gps_ok = gps_get_latest(&fix) && fix.valid;
+    if (gps_ok)
+    {
+      neopixel_set_rgb(0, 255, 0);
+    }
+    else
+    {
+      neopixel_set_rgb(255, 0, 0);
+    }
+    vTaskDelay(on_ms);
+    neopixel_set_rgb(0, 0, 0);
+    vTaskDelay(off_ms);
+
+    // Wi-Fi status: blue if web server/AP active.
+#if ALPHALOC_WIFI_WEB
+    if (cfg->config_window_s > 0)
+    {
+      neopixel_set_rgb(0, 0, 255);
+      vTaskDelay(on_ms);
+      neopixel_set_rgb(0, 0, 0);
+      vTaskDelay(off_ms);
+    }
+#endif
+
+    TickType_t elapsed = xTaskGetTickCount() - cycle_start;
+    if (elapsed < cycle_ms)
+    {
+      vTaskDelay(cycle_ms - elapsed);
+    }
+  }
+}
+#endif
+
 void app_main(void)
 {
   ESP_LOGI(TAG, "AlphaLoc starting");
+#ifdef ALPHALOC_STEMMA_QT_DISABLE_PIN
+  // Disable STEMMA QT power for lower power usage when unused.
+  gpio_config_t stemma_cfg = {
+      .pin_bit_mask = 1ULL << ALPHALOC_STEMMA_QT_DISABLE_PIN,
+      .mode = GPIO_MODE_OUTPUT,
+      .pull_up_en = GPIO_PULLUP_DISABLE,
+      .pull_down_en = GPIO_PULLDOWN_DISABLE,
+      .intr_type = GPIO_INTR_DISABLE,
+  };
+  ESP_ERROR_CHECK(gpio_config(&stemma_cfg));
+  ESP_ERROR_CHECK(gpio_set_level(ALPHALOC_STEMMA_QT_DISABLE_PIN, 0));
+#endif
   esp_err_t err = nvs_flash_init();
   if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND)
   {
@@ -163,5 +244,8 @@ void app_main(void)
   {
     xTaskCreate(config_window_task, "config_window", 4096, &s_cfg, 5, NULL);
   }
+#ifdef ALPHALOC_NEOPIXEL_PIN
+  xTaskCreate(status_led_task, "status_led", 3072, &s_cfg, 1, NULL);
+#endif
   ESP_LOGI(TAG, "AlphaLoc started");
 }
