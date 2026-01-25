@@ -143,11 +143,16 @@ static void status_led_task(void *arg)
   {
     TickType_t cycle_start = xTaskGetTickCount();
 
-    // Camera status: green if connected, red if not.
+    // Camera status: green if connected and bonded, blue if connected only, red if not connected.
     bool camera_connected = ble_client_is_connected();
-    if (camera_connected)
+    bool camera_bonded = ble_client_is_bonded();
+    if (camera_connected && camera_bonded)
     {
       neopixel_set_rgb(0, 255, 0);
+    }
+    else if (camera_connected)
+    {
+      neopixel_set_rgb(0, 0, 255);
     }
     else
     {

@@ -30,6 +30,47 @@ static const char *TAG = "gps";
 static gps_fix_t s_latest_fix;
 static SemaphoreHandle_t s_fix_mutex;
 static gps_config_t s_cfg;
+static gps_status_t s_status;
+static int64_t s_last_no_fix_log_us;
+
+static void update_status_gga(const char *line)
+{
+  // GGA fields: 6=fix quality, 7=satellites, 8=HDOP
+  char buf[GPS_LINE_MAX];
+  strncpy(buf, line, sizeof(buf) - 1);
+  buf[sizeof(buf) - 1] = '\0';
+
+  const char *fields[12] = {0};
+  int field_count = 0;
+  char *saveptr = NULL;
+  char *token = strtok_r(buf, ",", &saveptr);
+  while (token && field_count < 12)
+  {
+    fields[field_count++] = token;
+    token = strtok_r(NULL, ",", &saveptr);
+  }
+  if (field_count < 9)
+  {
+    return;
+  }
+
+  int fix_quality = atoi(fields[6]);
+  int sats = atoi(fields[7]);
+  if (xSemaphoreTake(s_fix_mutex, pdMS_TO_TICKS(50)) == pdTRUE)
+  {
+    s_status.has_lock = (fix_quality > 0);
+    s_status.satellites = (uint8_t)sats;
+    if (strncmp(line, "$GPGGA", 6) == 0)
+    {
+      s_status.constellations = GPS_CONSTELLATION_GPS;
+    }
+    else if (strncmp(line, "$GNGGA", 6) == 0)
+    {
+      s_status.constellations = (GPS_CONSTELLATION_GPS | GPS_CONSTELLATION_GLONASS);
+    }
+    xSemaphoreGive(s_fix_mutex);
+  }
+}
 
 static double parse_deg_min(const char *value)
 {
@@ -77,7 +118,6 @@ static bool parse_rmc(const char *line, gps_fix_t *out)
   out->minute = 0;
   out->second = 0;
   bool time_ok = false;
-  bool date_ok = false;
   if (fields[1][0] != '\0')
   {
     int hh = 0, mm = 0, ss = 0;
@@ -98,7 +138,6 @@ static bool parse_rmc(const char *line, gps_fix_t *out)
       out->day = (uint8_t)dd;
       out->month = (uint8_t)mm;
       out->year = (uint16_t)(2000 + yy);
-      date_ok = true;
     }
   }
   out->time_valid = time_ok;
@@ -155,7 +194,13 @@ static void update_fix(const gps_fix_t *fix, bool has_fix)
     }
     else
     {
-      VLOGI("No valid fix");
+      s_latest_fix.valid = false;
+      int64_t now = esp_timer_get_time();
+      if (now - s_last_no_fix_log_us > 5000000)
+      {
+        s_last_no_fix_log_us = now;
+        VLOGI("No valid fix");
+      }
     }
     xSemaphoreGive(s_fix_mutex);
   }
@@ -260,6 +305,10 @@ static void gps_task(void *arg)
           continue;
         }
         line_buf[line_len] = '\0';
+        if (strncmp(line_buf, "$GPGGA", 6) == 0 || strncmp(line_buf, "$GNGGA", 6) == 0)
+        {
+          update_status_gga(line_buf);
+        }
         gps_fix_t fix = {0};
         if (strncmp(line_buf, "$GPRMC", 6) == 0 || strncmp(line_buf, "$GNRMC", 6) == 0)
         {
@@ -298,6 +347,8 @@ void gps_init(const gps_config_t *cfg)
   s_cfg = *cfg;
   s_fix_mutex = xSemaphoreCreateMutex();
   memset(&s_latest_fix, 0, sizeof(s_latest_fix));
+  memset(&s_status, 0, sizeof(s_status));
+  s_last_no_fix_log_us = 0;
 
   uart_config_t uart_cfg = {
       .baud_rate = s_cfg.baud_rate,
@@ -324,6 +375,17 @@ bool gps_get_latest(gps_fix_t *out_fix)
     return false;
   }
   *out_fix = s_latest_fix;
+  xSemaphoreGive(s_fix_mutex);
+  return true;
+}
+
+bool gps_get_status(gps_status_t *out_status)
+{
+  if (xSemaphoreTake(s_fix_mutex, pdMS_TO_TICKS(50)) != pdTRUE)
+  {
+    return false;
+  }
+  *out_status = s_status;
   xSemaphoreGive(s_fix_mutex);
   return true;
 }

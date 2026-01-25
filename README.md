@@ -51,7 +51,8 @@ The NeoPixel LED provides a visual "heartbeat" every 3 seconds. It flashes multi
 **Sequence:** [Camera Status] -> [GPS Status] -> [WiFi Status] -> [Sleep]
 
 1.  **First Flash: Camera Connection**
-    *   🟢 **Green**: Connected to Camera via BLE.
+    *   🟢 **Green**: Connected to camera and bonded.
+    *   🔵 **Blue**: Connected to camera but not bonded yet.
     *   🔴 **Red**: Not connected.
 2.  **Second Flash: GPS Fix**
     *   🟢 **Green**: Valid 3D GPS Fix acquired.
@@ -63,7 +64,8 @@ The NeoPixel LED provides a visual "heartbeat" every 3 seconds. It flashes multi
 
 **Example**:
 *   🔴-🔴-🔵: No Camera, No GPS, Config Mode Active (Just turned on).
-*   🟢-🟢-⚫: Camera Connected, GPS Fixed, Normal Operation (Config closed).
+*   🔵-🟢-⚫: Camera Connected (Not Bonded Yet), GPS Fixed, Normal Operation (Config closed).
+*   🟢-🟢-⚫: Camera Connected (Bonded), GPS Fixed, Normal Operation (Config closed).
 
 ### 4. Configuration
 On startup, AlphaLoc enters a **Configuration Window** (default 5 minutes). During this time, you can change settings via WiFi or BLE.
@@ -115,6 +117,11 @@ You can use a generic BLE app (like nRF Connect) to write to the configuration s
 | AP SSID             | `...09007EA1`         | R/W | String          | Access Point SSID |
 | AP Password         | `...0A007EA1`         | R/W | String          | Access Point Password |
 | Max GPS Age         | `...0B007EA1`         | R/W | String (Int)    | Max age of GPS lock in seconds |
+| GPS Lock            | `...0C007EA1`         | R   | String (0/1)    | 1 when GPS lock is valid |
+| GPS Satellites      | `...0D007EA1`         | R   | String (Int)    | Satellites in view (from GGA) |
+| GPS Constellations  | `...0E007EA1`         | R   | String (Int)    | Bitmask: 1=GPS, 2=GLONASS |
+| Camera Connected    | `...0F007EA1`         | R   | String (0/1)    | BLE camera link active |
+| Camera Bonded       | `...10007EA1`         | R   | String (0/1)    | Link bonded (after pairing) |
 
 ## BLE Client Details (Camera Link)
 
@@ -139,6 +146,7 @@ Sony base UUID (constructed):
 ```
 
 It accepts either 128-bit UUIDs or 16-bit UUIDs:
+
 - **Location Service**: `0xDD00`
 - **Remote Service**: `0xFF00`
 
@@ -148,9 +156,30 @@ Within those services, AlphaLoc searches for:
 
 **Location Service (DD00)**
 
-- `0xDD11` (location write characteristic; used for sending GPS payloads)
-- `0xDD21` (flags; read to determine if TZ/DST are required)
-- `0xDD30`, `0xDD31` (time-related characteristics)
+- `0xDD21`: Flags read to determine if TZ/DST are required
+- `0xDD30`: Lock location (0x00 - Off, 0x01 - On)
+- `0xDD31`: Enable location updates (0x00 - Off, 0x01 - On)
+- `0xDD11`: Location write characteristic; used for sending GPS payloads
+
+Data is a 95 byte buffer
+
+| Offset    | Description                                                  | Remark                                           |
+|-----------|--------------------------------------------------------------|--------------------------------------------------|
+| [0:1]     | Payload Length (exclude these two bytes)                     | 0x5D = 93 bytes                                  |
+| [2:4]     | Fixed Data                                                   | 0x0802FC                                         |
+| [5]       | Flag of transmitting timezone offset and DST offset required | 0x03 for transmit and 0x00 for do not transmit   |
+| [6:10]    | Fixed Data                                                   | 0x0000101010                                     |
+| [11:14]   | Latitude (multiplied by 10000000)                            | 0x0BF79E5E = 200777310 / 10000000 = 20.077731    |
+| [15:18]   | Longitude (multiplied by 10000000) 	                       | 0x41C385A7 = 1103332775 / 10000000 = 110.3332775 |
+| [19:20]   | 	UTC Year                                                   | 0x07E4 = 2020                                    |
+| [21]      | 	UTC Month                                                  | 0x0B = 11                                        |
+| [22]      | 	UTC Day                                                    | 0x05 = 5                                         |
+| [23]      | 	UTC Hour                                                   | 0x04 = 4                                         |
+| [24]      | 	UTC Minute                                                 | 0x02 = 2                                         |
+| [25]      | 	UTC Second                                                 | 0x2A = 42                                        |
+| [26:90]   | 	Zeros  	                                                   | 0x00                                             |
+| *[91:92]  | 	Difference between UTC and current timezone in minutes     | 0x01E0 = 480min = 8h (UTC+8)                     |
+| *[93:94]  | 	Difference for DST in current timezone in minutes          |                                                  |
 
 **Remote Service (FF00)**
 
@@ -221,3 +250,12 @@ You can customize the firmware behavior using these compilation flags in `platfo
 | `GPS_UART_TX_PIN` | TX Pin for GPS Serial (Connects to GPS RX). | (Board dependent) |
 | `GPS_UART_RX_PIN` | RX Pin for GPS Serial (Connects to GPS TX). | (Board dependent) |
 | `DALPHALOC_FACTORY_RESET` | If set to `1`, wipes NVS settings on boot. Dangerous. | Undefined |
+
+## References
+
+There is a bunch of work done by others before me which greatly helped figuring out how the BLE protocol works with the Sony Alpha cameras. I'm sure I'm forgetting a bunch but to at least name a few:
+
+- https://github.com/dzwiedziu-nkg/esp32-a7iv-rc
+- https://github.com/ekutner/camera-gps-link
+- https://github.com/whc2001/ILCE7M3ExternalGps
+- And many more (search GitHub for one of the unique identifiers such as the service UUIDs).

@@ -13,6 +13,7 @@
 #include "services/gap/ble_svc_gap.h"
 
 #include "ble_client.h"
+#include "gps.h"
 
 static const char *TAG = "ble_cfg_srv";
 
@@ -27,6 +28,11 @@ typedef enum {
   FIELD_AP_SSID,
   FIELD_AP_PASS,
   FIELD_MAX_GPS_AGE,
+  FIELD_STATUS_GPS_LOCK,
+  FIELD_STATUS_GPS_SATS,
+  FIELD_STATUS_GPS_CONST,
+  FIELD_STATUS_CAM_CONN,
+  FIELD_STATUS_CAM_BOND,
 } field_id_t;
 
 static app_config_t *s_cfg;
@@ -67,6 +73,21 @@ static const ble_uuid128_t k_chr_ap_pass_uuid =
 static const ble_uuid128_t k_chr_max_gps_age_uuid =
     BLE_UUID128_INIT(0xB1, 0xF0, 0xB4, 0xD5, 0x79, 0x7B, 0x5A, 0x9E,
                      0x5B, 0x4F, 0x4A, 0x1F, 0x0B, 0x00, 0x7E, 0xA1);
+static const ble_uuid128_t k_chr_status_gps_lock_uuid =
+    BLE_UUID128_INIT(0xB1, 0xF0, 0xB4, 0xD5, 0x79, 0x7B, 0x5A, 0x9E,
+                     0x5B, 0x4F, 0x4A, 0x1F, 0x0C, 0x00, 0x7E, 0xA1);
+static const ble_uuid128_t k_chr_status_gps_sats_uuid =
+    BLE_UUID128_INIT(0xB1, 0xF0, 0xB4, 0xD5, 0x79, 0x7B, 0x5A, 0x9E,
+                     0x5B, 0x4F, 0x4A, 0x1F, 0x0D, 0x00, 0x7E, 0xA1);
+static const ble_uuid128_t k_chr_status_gps_const_uuid =
+    BLE_UUID128_INIT(0xB1, 0xF0, 0xB4, 0xD5, 0x79, 0x7B, 0x5A, 0x9E,
+                     0x5B, 0x4F, 0x4A, 0x1F, 0x0E, 0x00, 0x7E, 0xA1);
+static const ble_uuid128_t k_chr_status_cam_conn_uuid =
+    BLE_UUID128_INIT(0xB1, 0xF0, 0xB4, 0xD5, 0x79, 0x7B, 0x5A, 0x9E,
+                     0x5B, 0x4F, 0x4A, 0x1F, 0x0F, 0x00, 0x7E, 0xA1);
+static const ble_uuid128_t k_chr_status_cam_bond_uuid =
+    BLE_UUID128_INIT(0xB1, 0xF0, 0xB4, 0xD5, 0x79, 0x7B, 0x5A, 0x9E,
+                     0x5B, 0x4F, 0x4A, 0x1F, 0x10, 0x00, 0x7E, 0xA1);
 
 static void copy_str_field(char *dst, size_t dst_len, const char *src, size_t src_len) {
   size_t copy_len = src_len < dst_len - 1 ? src_len : dst_len - 1;
@@ -93,6 +114,7 @@ static int gatt_access_cb(uint16_t conn_handle, uint16_t attr_handle,
   (void)attr_handle;
   field_id_t field = (field_id_t)(intptr_t)arg;
   char buf[CONFIG_STR_MAX_64] = {0};
+  gps_status_t status;
 
   if (ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR) {
     const char *value = "";
@@ -130,6 +152,32 @@ static int gatt_access_cb(uint16_t conn_handle, uint16_t attr_handle,
         break;
       case FIELD_MAX_GPS_AGE:
         snprintf(num_buf, sizeof(num_buf), "%u", (unsigned)s_cfg->max_gps_age_s);
+        value = num_buf;
+        break;
+      case FIELD_STATUS_GPS_LOCK:
+        if (gps_get_status(&status)) {
+          snprintf(num_buf, sizeof(num_buf), "%u", status.has_lock ? 1 : 0);
+          value = num_buf;
+        }
+        break;
+      case FIELD_STATUS_GPS_SATS:
+        if (gps_get_status(&status)) {
+          snprintf(num_buf, sizeof(num_buf), "%u", status.satellites);
+          value = num_buf;
+        }
+        break;
+      case FIELD_STATUS_GPS_CONST:
+        if (gps_get_status(&status)) {
+          snprintf(num_buf, sizeof(num_buf), "%u", (unsigned)status.constellations);
+          value = num_buf;
+        }
+        break;
+      case FIELD_STATUS_CAM_CONN:
+        snprintf(num_buf, sizeof(num_buf), "%u", ble_client_is_connected() ? 1 : 0);
+        value = num_buf;
+        break;
+      case FIELD_STATUS_CAM_BOND:
+        snprintf(num_buf, sizeof(num_buf), "%u", ble_client_is_bonded() ? 1 : 0);
         value = num_buf;
         break;
       default:
@@ -197,6 +245,12 @@ static int gatt_access_cb(uint16_t conn_handle, uint16_t attr_handle,
         s_cfg->max_gps_age_s = max_age;
         break;
       }
+      case FIELD_STATUS_GPS_LOCK:
+      case FIELD_STATUS_GPS_SATS:
+      case FIELD_STATUS_GPS_CONST:
+      case FIELD_STATUS_CAM_CONN:
+      case FIELD_STATUS_CAM_BOND:
+        return BLE_ATT_ERR_WRITE_NOT_PERMITTED;
       default:
         return BLE_ATT_ERR_UNLIKELY;
     }
@@ -253,6 +307,26 @@ static const struct ble_gatt_svc_def gatt_svcs[] = {
              .access_cb = gatt_access_cb,
              .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
              .arg = (void *)FIELD_MAX_GPS_AGE},
+            {.uuid = &k_chr_status_gps_lock_uuid.u,
+             .access_cb = gatt_access_cb,
+             .flags = BLE_GATT_CHR_F_READ,
+             .arg = (void *)FIELD_STATUS_GPS_LOCK},
+            {.uuid = &k_chr_status_gps_sats_uuid.u,
+             .access_cb = gatt_access_cb,
+             .flags = BLE_GATT_CHR_F_READ,
+             .arg = (void *)FIELD_STATUS_GPS_SATS},
+            {.uuid = &k_chr_status_gps_const_uuid.u,
+             .access_cb = gatt_access_cb,
+             .flags = BLE_GATT_CHR_F_READ,
+             .arg = (void *)FIELD_STATUS_GPS_CONST},
+            {.uuid = &k_chr_status_cam_conn_uuid.u,
+             .access_cb = gatt_access_cb,
+             .flags = BLE_GATT_CHR_F_READ,
+             .arg = (void *)FIELD_STATUS_CAM_CONN},
+            {.uuid = &k_chr_status_cam_bond_uuid.u,
+             .access_cb = gatt_access_cb,
+             .flags = BLE_GATT_CHR_F_READ,
+             .arg = (void *)FIELD_STATUS_CAM_BOND},
             {0},
         },
     },

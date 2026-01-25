@@ -20,6 +20,18 @@ typedef struct {
   int64_t last_update_time_us;
 } gps_fix_t;
 
+typedef enum {
+  GPS_CONSTELLATION_NONE = 0,
+  GPS_CONSTELLATION_GPS = 1 << 0,
+  GPS_CONSTELLATION_GLONASS = 1 << 1,
+} gps_constellation_t;
+
+typedef struct {
+  bool has_lock;
+  uint8_t satellites;
+  gps_constellation_t constellations;
+} gps_status_t;
+
 typedef struct {
   int uart_num;
   int tx_pin;
@@ -30,5 +42,6 @@ typedef struct {
 
 void gps_init(const gps_config_t *cfg);
 bool gps_get_latest(gps_fix_t *out_fix);
+bool gps_get_status(gps_status_t *out_status);
 
 #endif

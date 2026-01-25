@@ -4,16 +4,30 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "ble_client.h"
 #include "esp_event.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
+#include "gps.h"
 
 static const char *TAG = "wifi_web";
 
 static httpd_handle_t s_server;
 static app_config_t *s_cfg;
+static const char *constellation_to_str(gps_constellation_t mask) {
+  if (mask == (GPS_CONSTELLATION_GPS | GPS_CONSTELLATION_GLONASS)) {
+    return "gps+glonass";
+  }
+  if (mask == GPS_CONSTELLATION_GPS) {
+    return "gps";
+  }
+  if (mask == GPS_CONSTELLATION_GLONASS) {
+    return "glonass";
+  }
+  return "none";
+}
 static bool s_started;
 
 static bool parse_u16(const char *value, uint16_t *out) {
@@ -76,6 +90,11 @@ static void form_get(const char *body, const char *key, char *out, size_t out_le
 
 static esp_err_t handle_root(httpd_req_t *req) {
   char page[2048];
+  gps_status_t gps_status = {0};
+  const char *gps_const_str = "n/a";
+  if (gps_get_status(&gps_status)) {
+    gps_const_str = constellation_to_str(gps_status.constellations);
+  }
   snprintf(page, sizeof(page),
            "<!doctype html><html><head><meta charset=\"utf-8\">"
            "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
@@ -97,6 +116,14 @@ static esp_err_t handle_root(httpd_req_t *req) {
            "<label>AP SSID</label><input name=\"ap_ssid\" value=\"%s\">"
            "<label>AP pass</label><input name=\"ap_pass\" value=\"%s\">"
            "<label>Max GPS age (seconds)</label><input name=\"max_age_s\" value=\"%u\">"
+           "<fieldset style=\"margin-top:10px;\">"
+           "<legend>Status (read-only)</legend>"
+           "<div>GPS lock: %s</div>"
+           "<div>Satellites: %u</div>"
+           "<div>Constellations: %s</div>"
+           "<div>Camera connected: %s</div>"
+           "<div>Camera bonded: %s</div>"
+           "</fieldset>"
            "<button type=\"submit\">Save</button>"
            "</form>"
            "<p>Reboot the device after saving to apply network changes.</p>"
@@ -111,7 +138,12 @@ static esp_err_t handle_root(httpd_req_t *req) {
            s_cfg->wifi_pass,
            s_cfg->ap_ssid,
            s_cfg->ap_pass,
-           (unsigned)s_cfg->max_gps_age_s);
+           (unsigned)s_cfg->max_gps_age_s,
+           gps_status.has_lock ? "yes" : "no",
+           (unsigned)gps_status.satellites,
+           gps_const_str,
+           ble_client_is_connected() ? "yes" : "no",
+           ble_client_is_bonded() ? "yes" : "no");
 
   httpd_resp_set_type(req, "text/html");
   return httpd_resp_send(req, page, HTTPD_RESP_USE_STRLEN);
