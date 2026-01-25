@@ -129,8 +129,19 @@ void app_main(void)
   esp_err_t err = nvs_flash_init();
   if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND)
   {
-    ESP_ERROR_CHECK(nvs_flash_erase());
-    ESP_ERROR_CHECK(nvs_flash_init());
+#ifdef ALPHALOC_FACTORY_RESET
+    if (ALPHALOC_FACTORY_RESET)
+    {
+      ESP_ERROR_CHECK(nvs_flash_erase());
+      ESP_ERROR_CHECK(nvs_flash_init());
+    }
+    else
+    {
+      ESP_LOGW(TAG, "NVS needs erase but factory reset disabled; keeping data");
+    }
+#else
+    ESP_LOGW(TAG, "NVS needs erase but factory reset flag not set; keeping data");
+#endif
   }
 
   config_load(&s_cfg);
