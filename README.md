@@ -68,7 +68,10 @@ The NeoPixel LED provides a visual "heartbeat" every 3 seconds. It flashes multi
 *   🟢-🟢-⚫: Camera Connected (Bonded), GPS Fixed, Normal Operation (Config closed).
 
 ### 4. Configuration
-On startup, AlphaLoc enters a **Configuration Window** (default 5 minutes). During this time, you can change settings via WiFi or BLE.
+
+> **⚠️ SECURITY WARNING**: The BLE configuration service is **DISABLED by default** for security reasons. When enabled, it allows **UNAUTHENTICATED access** to device settings including WiFi passwords. Only enable it (`ALPHALOC_BLE_CONFIG=1`) in trusted environments or for initial setup, then rebuild with it disabled.
+
+On startup, AlphaLoc enters a **Configuration Window** (default 5 minutes). During this time, you can change settings via WiFi (if `ALPHALOC_WIFI_WEB=1`) or BLE (if `ALPHALOC_BLE_CONFIG=1`).
 
 #### Configuration Parameters
 
@@ -241,15 +244,22 @@ The `platformio.ini` file defines several build environments for different purpo
 
 You can customize the firmware behavior using these compilation flags in `platformio.ini`:
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `ALPHALOC_WIFI_WEB` | Enable internal settings web server. Set to `0` to remove WiFi stack and save power/flash. | `1` |
-| `ALPHALOC_VERBOSE` | Enable extensive debug logging to serial UART. | `0` |
-| `ALPHALOC_FAKE_GPS` | Ignore UART GPS and output a static test location. | `0` |
-| `ALPHALOC_NEOPIXEL_PIN`| GPIO pin number for the WS2812B NeoPixel. | (Board dependent) |
-| `GPS_UART_TX_PIN` | TX Pin for GPS Serial (Connects to GPS RX). | (Board dependent) |
-| `GPS_UART_RX_PIN` | RX Pin for GPS Serial (Connects to GPS TX). | (Board dependent) |
-| `DALPHALOC_FACTORY_RESET` | If set to `1`, wipes NVS settings on boot. Dangerous. | Undefined |
+| Flag | Description | Default | Security Impact |
+|------|-------------|---------|----------------|
+| `ALPHALOC_WIFI_WEB` | Enable internal settings web server. Set to `0` to remove WiFi stack and save power/flash. | `1` | Medium - protect WiFi credentials |
+| `ALPHALOC_BLE_CONFIG` | **Enable BLE configuration service.** | `0` (DISABLED) | **🔴 CRITICAL** - Exposes all settings via unencrypted BLE |
+| `ALPHALOC_VERBOSE` | Enable extensive debug logging to serial UART. | `0` | Low - may log sensitive data |
+| `ALPHALOC_FAKE_GPS` | Ignore UART GPS and output a static test location. | `0` | None |
+| `ALPHALOC_NEOPIXEL_PIN`| GPIO pin number for the WS2812B NeoPixel. | (Board dependent) | None |
+| `GPS_UART_TX_PIN` | TX Pin for GPS Serial (Connects to GPS RX). | (Board dependent) | None |
+| `GPS_UART_RX_PIN` | RX Pin for GPS Serial (Connects to GPS TX). | (Board dependent) | None |
+| `DALPHALOC_FACTORY_RESET` | If set to `1`, wipes NVS settings on boot. Dangerous. | Undefined | Medium - enables data wipe |
+
+**Security Best Practices:**
+- Keep `ALPHALOC_BLE_CONFIG=0` in production builds
+- Only enable BLE config for initial setup in controlled environments
+- Use WiFi config (`ALPHALOC_WIFI_WEB=1`) with strong AP password instead
+- Change default WiFi credentials immediately after first boot
 
 ## References
 

@@ -1,7 +1,9 @@
 #include <string.h>
 
 #include "ble_client.h"
+#if ALPHALOC_BLE_CONFIG
 #include "ble_config_server.h"
+#endif
 #include "config.h"
 #include "driver/gpio.h"
 #include "driver/uart.h"
@@ -108,13 +110,17 @@ static void location_publisher_task(void *arg) {
 
 static void config_window_task(void *arg) {
   app_config_t *cfg = (app_config_t *)arg;
+#if ALPHALOC_BLE_CONFIG
   ble_config_server_start();
+#endif
 #if ALPHALOC_WIFI_WEB
   wifi_web_start(cfg);
 #endif
   vTaskDelay(pdMS_TO_TICKS(cfg->config_window_s * 1000));
   s_config_window_end_time_us = esp_timer_get_time();
+#if ALPHALOC_BLE_CONFIG
   ble_config_server_stop();
+#endif
 #if ALPHALOC_WIFI_WEB
   wifi_web_stop();
 #endif
