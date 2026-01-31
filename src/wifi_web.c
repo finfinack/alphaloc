@@ -16,6 +16,7 @@ static const char *TAG = "wifi_web";
 
 static httpd_handle_t s_server;
 static app_config_t *s_cfg;
+static esp_netif_t *s_netif = NULL;
 static const char *constellation_to_str(gps_constellation_t mask) {
   if (mask == (GPS_CONSTELLATION_GPS | GPS_CONSTELLATION_GLONASS)) {
     return "gps+glonass";
@@ -233,13 +234,11 @@ void wifi_web_start(app_config_t *cfg) {
   ESP_ERROR_CHECK(esp_netif_init());
   ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-  esp_netif_t *netif = NULL;
   if (s_cfg->wifi_mode == APP_WIFI_MODE_STA) {
-    netif = esp_netif_create_default_wifi_sta();
+    s_netif = esp_netif_create_default_wifi_sta();
   } else {
-    netif = esp_netif_create_default_wifi_ap();
+    s_netif = esp_netif_create_default_wifi_ap();
   }
-  (void)netif;
 
   wifi_init_config_t cfg_init = WIFI_INIT_CONFIG_DEFAULT();
   ESP_ERROR_CHECK(esp_wifi_init(&cfg_init));
@@ -289,6 +288,16 @@ void wifi_web_stop(void) {
   }
   esp_wifi_stop();
   esp_wifi_deinit();
+
+  // Clean up network interface to prevent memory leak
+  if (s_netif) {
+    esp_netif_destroy(s_netif);
+    s_netif = NULL;
+  }
+
+  // Clean up event loop
+  esp_event_loop_delete_default();
+
   s_started = false;
   ESP_LOGI(TAG, "WiFi web stopped");
 }
