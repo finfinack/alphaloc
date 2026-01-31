@@ -21,10 +21,20 @@ static const char *TAG = "gps";
 #define ALPHALOC_VERBOSE 0
 #endif
 
+#ifndef ALPHALOC_LOG_NMEA
+#define ALPHALOC_LOG_NMEA 0
+#endif
+
 #if ALPHALOC_VERBOSE
 #define VLOGI(...) ESP_LOGI(TAG, __VA_ARGS__)
 #else
 #define VLOGI(...) ((void)0)
+#endif
+
+#if ALPHALOC_LOG_NMEA
+#define NMEALOGI(...) ESP_LOGI(TAG, __VA_ARGS__)
+#else
+#define NMEALOGI(...) ((void)0)
 #endif
 
 static gps_fix_t s_latest_fix;
@@ -277,6 +287,7 @@ static void gps_task(void *arg) {
 
         // Validate minimum NMEA sentence length before parsing
         if (line_len >= 7 && line_buf[0] == '$') {
+          NMEALOGI("NMEA: %s", line_buf);
           if (strncmp(line_buf, "$GPGGA", 6) == 0 ||
               strncmp(line_buf, "$GNGGA", 6) == 0) {
             update_status_gga(line_buf);

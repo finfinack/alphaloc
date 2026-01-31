@@ -17,7 +17,7 @@ The project is set up for **PlatformIO** and currently supports:
 | Board | Environment | Pinout |
 |-------|-------------|--------|
 | **DFRobot Beetle ESP32-C6** | `esp32c6` | GPS TX: 5, GPS RX: 4, NeoPixel: 6 |
-| **Adafruit Feather ESP32 V2** | `esp32-feather` | GPS TX: 8, GPS RX: 7, NeoPixel: 6 |
+| **Adafruit Feather ESP32-S3** | `esp32s3` | GPS TX: 38, GPS RX: 39, NeoPixel: 6 |
 
 You can easily adapt it to other ESP32 boards by modifying `platformio.ini`.
 
@@ -238,7 +238,7 @@ The `platformio.ini` file defines several build environments for different purpo
     *   Enables verbose logging (`ALPHALOC_VERBOSE=1`).
     *   **Enables Fake GPS (`ALPHALOC_FAKE_GPS=1`)**: Simulates a stationary location (Munich) for testing without a GPS module or satellite lock.
 *   **`env:esp32c6-debug-gps`**: Debugging environment using *real* GPS data but with verbose logging enabled.
-*   **`env:esp32-feather`**: Production build for the Adafruit Feather ESP32 V2.
+*   **`env:esp32s3-debug-gps`**: Debugging environment using *real* GPS data but with verbose logging enabled.
 
 ### Build Flags
 
