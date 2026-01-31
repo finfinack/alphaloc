@@ -3,6 +3,8 @@
 #include "ble_client.h"
 #include "ble_config_server.h"
 #include "config.h"
+#include "driver/gpio.h"
+#include "driver/uart.h"
 #include "esp_log.h"
 #include "esp_rom_sys.h"
 #include "esp_timer.h"
@@ -10,8 +12,6 @@
 #include "freertos/task.h"
 #include "gps.h"
 #include "nvs_flash.h"
-#include "driver/uart.h"
-#include "driver/gpio.h"
 
 #ifdef ALPHALOC_NEOPIXEL_PIN
 #include "neopixel.h"
@@ -49,12 +49,11 @@
 
 static const char *TAG = "main";
 static app_config_t s_cfg;
+static int64_t s_config_window_end_time_us = 0;
 
-static bool get_location_for_send(gps_fix_t *out_fix)
-{
+static bool get_location_for_send(gps_fix_t *out_fix) {
   gps_fix_t fix;
-  if (gps_get_latest(&fix) && fix.valid)
-  {
+  if (gps_get_latest(&fix) && fix.valid) {
     *out_fix = fix;
     return true;
   }
@@ -79,33 +78,27 @@ static bool get_location_for_send(gps_fix_t *out_fix)
 #endif
 }
 
-static void focus_update_cb(void *ctx)
-{
+static void focus_update_cb(void *ctx) {
   app_config_t *cfg = (app_config_t *)ctx;
   gps_fix_t fix;
-  if (!get_location_for_send(&fix))
-  {
+  if (!get_location_for_send(&fix)) {
     return;
   }
   int64_t now = esp_timer_get_time();
-  if ((now - fix.last_fix_time_us) > (int64_t)cfg->max_gps_age_s * 1000000LL)
-  {
+  if ((now - fix.last_fix_time_us) > (int64_t)cfg->max_gps_age_s * 1000000LL) {
     return;
   }
   ble_client_send_location(&fix);
 }
 
-static void location_publisher_task(void *arg)
-{
+static void location_publisher_task(void *arg) {
   const app_config_t *cfg = (const app_config_t *)arg;
-  while (true)
-  {
+  while (true) {
     gps_fix_t fix;
-    if (get_location_for_send(&fix))
-    {
+    if (get_location_for_send(&fix)) {
       int64_t now = esp_timer_get_time();
-      if ((now - fix.last_fix_time_us) <= (int64_t)cfg->max_gps_age_s * 1000000LL)
-      {
+      if ((now - fix.last_fix_time_us) <=
+          (int64_t)cfg->max_gps_age_s * 1000000LL) {
         ble_client_send_location(&fix);
       }
     }
@@ -113,14 +106,14 @@ static void location_publisher_task(void *arg)
   }
 }
 
-static void config_window_task(void *arg)
-{
+static void config_window_task(void *arg) {
   app_config_t *cfg = (app_config_t *)arg;
   ble_config_server_start();
 #if ALPHALOC_WIFI_WEB
   wifi_web_start(cfg);
 #endif
   vTaskDelay(pdMS_TO_TICKS(cfg->config_window_s * 1000));
+  s_config_window_end_time_us = esp_timer_get_time();
   ble_config_server_stop();
 #if ALPHALOC_WIFI_WEB
   wifi_web_stop();
@@ -129,8 +122,7 @@ static void config_window_task(void *arg)
 }
 
 #ifdef ALPHALOC_NEOPIXEL_PIN
-static void status_led_task(void *arg)
-{
+static void status_led_task(void *arg) {
   const app_config_t *cfg = (const app_config_t *)arg;
   const uint8_t brightness = 8;
   const TickType_t on_ms = pdMS_TO_TICKS(150);
@@ -139,23 +131,18 @@ static void status_led_task(void *arg)
 
   neopixel_init(ALPHALOC_NEOPIXEL_PIN, brightness);
 
-  while (true)
-  {
+  while (true) {
     TickType_t cycle_start = xTaskGetTickCount();
 
-    // Camera status: green if connected and bonded, blue if connected only, red if not connected.
+    // Camera status: green if connected and bonded, blue if connected only, red
+    // if not connected.
     bool camera_connected = ble_client_is_connected();
     bool camera_bonded = ble_client_is_bonded();
-    if (camera_connected && camera_bonded)
-    {
+    if (camera_connected && camera_bonded) {
       neopixel_set_rgb(0, 255, 0);
-    }
-    else if (camera_connected)
-    {
+    } else if (camera_connected) {
       neopixel_set_rgb(0, 0, 255);
-    }
-    else
-    {
+    } else {
       neopixel_set_rgb(255, 0, 0);
     }
     vTaskDelay(on_ms);
@@ -165,12 +152,9 @@ static void status_led_task(void *arg)
     // GPS status: green if fix is valid, red if not.
     gps_fix_t fix;
     bool gps_ok = gps_get_latest(&fix) && fix.valid;
-    if (gps_ok)
-    {
+    if (gps_ok) {
       neopixel_set_rgb(0, 255, 0);
-    }
-    else
-    {
+    } else {
       neopixel_set_rgb(255, 0, 0);
     }
     vTaskDelay(on_ms);
@@ -179,8 +163,10 @@ static void status_led_task(void *arg)
 
     // Wi-Fi status: blue if web server/AP active.
 #if ALPHALOC_WIFI_WEB
-    if (cfg->config_window_s > 0)
-    {
+    int64_t now = esp_timer_get_time();
+    bool window_active =
+        (s_config_window_end_time_us == 0 || now < s_config_window_end_time_us);
+    if (window_active) {
       neopixel_set_rgb(0, 0, 255);
       vTaskDelay(on_ms);
       neopixel_set_rgb(0, 0, 0);
@@ -189,16 +175,14 @@ static void status_led_task(void *arg)
 #endif
 
     TickType_t elapsed = xTaskGetTickCount() - cycle_start;
-    if (elapsed < cycle_ms)
-    {
+    if (elapsed < cycle_ms) {
       vTaskDelay(cycle_ms - elapsed);
     }
   }
 }
 #endif
 
-void app_main(void)
-{
+void app_main(void) {
   ESP_LOGI(TAG, "AlphaLoc starting");
 #ifdef ALPHALOC_STEMMA_QT_DISABLE_PIN
   // Disable STEMMA QT power for lower power usage when unused.
@@ -213,20 +197,18 @@ void app_main(void)
   ESP_ERROR_CHECK(gpio_set_level(ALPHALOC_STEMMA_QT_DISABLE_PIN, 0));
 #endif
   esp_err_t err = nvs_flash_init();
-  if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND)
-  {
+  if (err == ESP_ERR_NVS_NO_FREE_PAGES ||
+      err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
 #ifdef ALPHALOC_FACTORY_RESET
-    if (ALPHALOC_FACTORY_RESET)
-    {
+    if (ALPHALOC_FACTORY_RESET) {
       ESP_ERROR_CHECK(nvs_flash_erase());
       ESP_ERROR_CHECK(nvs_flash_init());
-    }
-    else
-    {
+    } else {
       ESP_LOGW(TAG, "NVS needs erase but factory reset disabled; keeping data");
     }
 #else
-    ESP_LOGW(TAG, "NVS needs erase but factory reset flag not set; keeping data");
+    ESP_LOGW(TAG,
+             "NVS needs erase but factory reset flag not set; keeping data");
 #endif
   }
 
@@ -245,8 +227,7 @@ void app_main(void)
   ble_client_set_focus_callback(focus_update_cb, &s_cfg);
 
   xTaskCreate(location_publisher_task, "location_pub", 4096, &s_cfg, 5, NULL);
-  if (s_cfg.config_window_s > 0)
-  {
+  if (s_cfg.config_window_s > 0) {
     xTaskCreate(config_window_task, "config_window", 4096, &s_cfg, 5, NULL);
   }
 #ifdef ALPHALOC_NEOPIXEL_PIN
