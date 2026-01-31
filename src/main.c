@@ -184,6 +184,18 @@ static void status_led_task(void *arg) {
 
 void app_main(void) {
   ESP_LOGI(TAG, "AlphaLoc starting");
+
+#if CONFIG_PM_ENABLE
+  // Configure automatic light sleep (Issue 3.4)
+  esp_pm_config_t pm_config = {
+      .max_freq_mhz = 160, .min_freq_mhz = 40, .light_sleep_enable = true};
+  ESP_ERROR_CHECK(esp_pm_configure(&pm_config));
+  ESP_LOGI(TAG, "Power management: light sleep enabled");
+#else
+  ESP_LOGW(TAG, "Power management disabled in sdkconfig - enable "
+                "CONFIG_PM_ENABLE for light sleep");
+#endif
+
 #ifdef ALPHALOC_STEMMA_QT_DISABLE_PIN
   // Disable STEMMA QT power for lower power usage when unused.
   gpio_config_t stemma_cfg = {

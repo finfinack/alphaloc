@@ -60,7 +60,8 @@ static void url_decode(char *dst, const char *src, size_t dst_len) {
   dst[di] = '\0';
 }
 
-static void form_get(const char *body, const char *key, char *out, size_t out_len) {
+static void form_get(const char *body, const char *key, char *out,
+                     size_t out_len) {
   const char *p = body;
   size_t key_len = strlen(key);
   while (p && *p) {
@@ -96,55 +97,53 @@ static esp_err_t handle_root(httpd_req_t *req) {
   if (gps_get_status(&gps_status)) {
     gps_const_str = constellation_to_str(gps_status.constellations);
   }
-  snprintf(page, sizeof(page),
-           "<!doctype html><html><head><meta charset=\"utf-8\">"
-           "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-           "<title>AlphaLoc Config</title>"
-           "<style>body{font-family:Arial,sans-serif;margin:24px;max-width:560px;}label{display:block;margin:12px 0 4px;}input,select{width:100%%;padding:8px;margin-bottom:8px;}button{padding:10px 14px;}</style>"
-           "</head><body><h2>AlphaLoc Config</h2>"
-           "<form method=\"POST\" action=\"/save\">"
-           "<label>Camera name prefix</label><input name=\"cam_name\" value=\"%s\">"
-           "<label>Camera MAC prefix</label><input name=\"cam_mac\" value=\"%s\">"
-           "<label>TZ offset (minutes)</label><input name=\"tz\" value=\"%u\">"
-           "<label>DST offset (minutes)</label><input name=\"dst\" value=\"%u\">"
-           "<label>WiFi mode</label>"
-           "<select name=\"wifi_mode\">"
-           "<option value=\"0\" %s>AP</option>"
-           "<option value=\"1\" %s>STA</option>"
-           "</select>"
-           "<label>WiFi SSID (STA)</label><input name=\"wifi_ssid\" value=\"%s\">"
-           "<label>WiFi pass (STA)</label><input name=\"wifi_pass\" value=\"%s\">"
-           "<label>AP SSID</label><input name=\"ap_ssid\" value=\"%s\">"
-           "<label>AP pass</label><input name=\"ap_pass\" value=\"%s\">"
-           "<label>Max GPS age (seconds)</label><input name=\"max_age_s\" value=\"%u\">"
-           "<fieldset style=\"margin-top:10px;\">"
-           "<legend>Status (read-only)</legend>"
-           "<div>GPS lock: %s</div>"
-           "<div>Satellites: %u</div>"
-           "<div>Constellations: %s</div>"
-           "<div>Camera connected: %s</div>"
-           "<div>Camera bonded: %s</div>"
-           "</fieldset>"
-           "<button type=\"submit\">Save</button>"
-           "</form>"
-           "<p>Reboot the device after saving to apply network changes.</p>"
-           "</body></html>",
-           s_cfg->camera_name_prefix,
-           s_cfg->camera_mac_prefix,
-           s_cfg->tz_offset_min,
-           s_cfg->dst_offset_min,
-           s_cfg->wifi_mode == APP_WIFI_MODE_AP ? "selected" : "",
-           s_cfg->wifi_mode == APP_WIFI_MODE_STA ? "selected" : "",
-           s_cfg->wifi_ssid,
-           s_cfg->wifi_pass,
-           s_cfg->ap_ssid,
-           s_cfg->ap_pass,
-           (unsigned)s_cfg->max_gps_age_s,
-           gps_status.has_lock ? "yes" : "no",
-           (unsigned)gps_status.satellites,
-           gps_const_str,
-           ble_client_is_connected() ? "yes" : "no",
-           ble_client_is_bonded() ? "yes" : "no");
+  snprintf(
+      page, sizeof(page),
+      "<!doctype html><html><head><meta charset=\"utf-8\">"
+      "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+      "<title>AlphaLoc Config</title>"
+      "<style>body{font-family:Arial,sans-serif;margin:24px;max-width:560px;}"
+      "label{display:block;margin:12px 0 "
+      "4px;}input,select{width:100%%;padding:8px;margin-bottom:8px;}button{"
+      "padding:10px 14px;}</style>"
+      "</head><body><h2>AlphaLoc Config</h2>"
+      "<form method=\"POST\" action=\"/save\">"
+      "<label>Camera name prefix</label><input name=\"cam_name\" value=\"%s\">"
+      "<label>Camera MAC prefix</label><input name=\"cam_mac\" value=\"%s\">"
+      "<label>TZ offset (minutes)</label><input name=\"tz\" value=\"%u\">"
+      "<label>DST offset (minutes)</label><input name=\"dst\" value=\"%u\">"
+      "<label>WiFi mode</label>"
+      "<select name=\"wifi_mode\">"
+      "<option value=\"0\" %s>AP</option>"
+      "<option value=\"1\" %s>STA</option>"
+      "</select>"
+      "<label>WiFi SSID (STA)</label><input name=\"wifi_ssid\" value=\"%s\">"
+      "<label>WiFi pass (STA)</label><input name=\"wifi_pass\" value=\"%s\">"
+      "<label>AP SSID</label><input name=\"ap_ssid\" value=\"%s\">"
+      "<label>AP pass</label><input name=\"ap_pass\" value=\"%s\">"
+      "<label>Max GPS age (seconds)</label><input name=\"max_age_s\" "
+      "value=\"%u\">"
+      "<fieldset style=\"margin-top:10px;\">"
+      "<legend>Status (read-only)</legend>"
+      "<div>GPS lock: %s</div>"
+      "<div>Satellites: %u</div>"
+      "<div>Constellations: %s</div>"
+      "<div>Camera connected: %s</div>"
+      "<div>Camera bonded: %s</div>"
+      "</fieldset>"
+      "<button type=\"submit\">Save</button>"
+      "</form>"
+      "<p>Reboot the device after saving to apply network changes.</p>"
+      "</body></html>",
+      s_cfg->camera_name_prefix, s_cfg->camera_mac_prefix, s_cfg->tz_offset_min,
+      s_cfg->dst_offset_min,
+      s_cfg->wifi_mode == APP_WIFI_MODE_AP ? "selected" : "",
+      s_cfg->wifi_mode == APP_WIFI_MODE_STA ? "selected" : "", s_cfg->wifi_ssid,
+      s_cfg->wifi_pass, s_cfg->ap_ssid, s_cfg->ap_pass,
+      (unsigned)s_cfg->max_gps_age_s, gps_status.has_lock ? "yes" : "no",
+      (unsigned)gps_status.satellites, gps_const_str,
+      ble_client_is_connected() ? "yes" : "no",
+      ble_client_is_bonded() ? "yes" : "no");
 
   httpd_resp_set_type(req, "text/html");
   return httpd_resp_send(req, page, HTTPD_RESP_USE_STRLEN);
@@ -161,13 +160,15 @@ static esp_err_t handle_save(httpd_req_t *req) {
   char value[CONFIG_STR_MAX_64];
   form_get(body, "cam_name", value, sizeof(value));
   if (value[0] != '\0') {
-    strncpy(s_cfg->camera_name_prefix, value, sizeof(s_cfg->camera_name_prefix) - 1);
+    strncpy(s_cfg->camera_name_prefix, value,
+            sizeof(s_cfg->camera_name_prefix) - 1);
     s_cfg->camera_name_prefix[sizeof(s_cfg->camera_name_prefix) - 1] = '\0';
   }
 
   form_get(body, "cam_mac", value, sizeof(value));
   if (value[0] != '\0') {
-    strncpy(s_cfg->camera_mac_prefix, value, sizeof(s_cfg->camera_mac_prefix) - 1);
+    strncpy(s_cfg->camera_mac_prefix, value,
+            sizeof(s_cfg->camera_mac_prefix) - 1);
     s_cfg->camera_mac_prefix[sizeof(s_cfg->camera_mac_prefix) - 1] = '\0';
   }
 
@@ -245,16 +246,22 @@ void wifi_web_start(app_config_t *cfg) {
 
   if (s_cfg->wifi_mode == APP_WIFI_MODE_STA) {
     wifi_config_t wifi_cfg = {0};
-    strncpy((char *)wifi_cfg.sta.ssid, s_cfg->wifi_ssid, sizeof(wifi_cfg.sta.ssid) - 1);
-    strncpy((char *)wifi_cfg.sta.password, s_cfg->wifi_pass, sizeof(wifi_cfg.sta.password) - 1);
+    strncpy((char *)wifi_cfg.sta.ssid, s_cfg->wifi_ssid,
+            sizeof(wifi_cfg.sta.ssid) - 1);
+    strncpy((char *)wifi_cfg.sta.password, s_cfg->wifi_pass,
+            sizeof(wifi_cfg.sta.password) - 1);
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg));
   } else {
     wifi_config_t wifi_cfg = {0};
-    strncpy((char *)wifi_cfg.ap.ssid, s_cfg->ap_ssid, sizeof(wifi_cfg.ap.ssid) - 1);
+    strncpy((char *)wifi_cfg.ap.ssid, s_cfg->ap_ssid,
+            sizeof(wifi_cfg.ap.ssid) - 1);
     wifi_cfg.ap.ssid_len = strlen((char *)wifi_cfg.ap.ssid);
-    strncpy((char *)wifi_cfg.ap.password, s_cfg->ap_pass, sizeof(wifi_cfg.ap.password) - 1);
-    wifi_cfg.ap.authmode = strlen((char *)wifi_cfg.ap.password) == 0 ? WIFI_AUTH_OPEN : WIFI_AUTH_WPA2_PSK;
+    strncpy((char *)wifi_cfg.ap.password, s_cfg->ap_pass,
+            sizeof(wifi_cfg.ap.password) - 1);
+    wifi_cfg.ap.authmode = strlen((char *)wifi_cfg.ap.password) == 0
+                               ? WIFI_AUTH_OPEN
+                               : WIFI_AUTH_WPA2_PSK;
     wifi_cfg.ap.max_connection = 4;
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_cfg));
@@ -262,6 +269,10 @@ void wifi_web_start(app_config_t *cfg) {
 
   ESP_ERROR_CHECK(esp_wifi_start());
   if (s_cfg->wifi_mode == APP_WIFI_MODE_STA) {
+    // Enable WiFi power saving in STA mode (Issue 3.2)
+    esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+    ESP_LOGI(TAG, "WiFi power saving enabled");
+
     esp_wifi_connect();
   }
 
@@ -269,8 +280,12 @@ void wifi_web_start(app_config_t *cfg) {
   server_cfg.uri_match_fn = httpd_uri_match_wildcard;
   httpd_start(&s_server, &server_cfg);
 
-  httpd_uri_t root = {.uri = "/", .method = HTTP_GET, .handler = handle_root, .user_ctx = NULL};
-  httpd_uri_t save = {.uri = "/save", .method = HTTP_POST, .handler = handle_save, .user_ctx = NULL};
+  httpd_uri_t root = {
+      .uri = "/", .method = HTTP_GET, .handler = handle_root, .user_ctx = NULL};
+  httpd_uri_t save = {.uri = "/save",
+                      .method = HTTP_POST,
+                      .handler = handle_save,
+                      .user_ctx = NULL};
   httpd_register_uri_handler(s_server, &root);
   httpd_register_uri_handler(s_server, &save);
 

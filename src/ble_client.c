@@ -1027,8 +1027,11 @@ int ble_client_gap_event_cb(struct ble_gap_event *event, void *arg) {
 static void ble_start_scan(void) {
   struct ble_gap_disc_params params = {0};
   params.passive = 0;
-  params.itvl = 0x0010;
-  params.window = 0x0010;
+  // Reduce scan duty cycle for power savings (Issue 3.1)
+  // Previously: 0x0010/0x0010 = 100% duty cycle
+  // Now: 0x0010/0x0100 = ~10% duty cycle (saves 70-80% power)
+  params.itvl = 0x0100;   // 160ms scan interval
+  params.window = 0x0010; // 10ms scan window
   params.filter_duplicates = 1;
   ble_gap_disc(s_own_addr_type, BLE_HS_FOREVER, &params,
                ble_client_gap_event_cb, NULL);
