@@ -34,7 +34,9 @@
 #ifndef GPS_UART_RX_PIN
 #error "GPS_UART_RX_PIN must be set via build_flags"
 #endif
+#ifndef GPS_UART_BAUD
 #define GPS_UART_BAUD 9600
+#endif
 
 #ifndef ALPHALOC_FAKE_GPS
 #define ALPHALOC_FAKE_GPS 0

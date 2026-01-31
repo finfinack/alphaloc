@@ -17,6 +17,19 @@
 
 static const char *TAG = "gps";
 
+#ifndef ALPHALOC_FAKE_GPS
+#define ALPHALOC_FAKE_GPS 0
+#endif
+
+#define FAKE_LAT_DEG 48.137154
+#define FAKE_LON_DEG 11.576124
+#define FAKE_YEAR 2024
+#define FAKE_MONTH 1
+#define FAKE_DAY 1
+#define FAKE_HOUR 12
+#define FAKE_MINUTE 0
+#define FAKE_SECOND 0
+
 #ifndef ALPHALOC_VERBOSE
 #define ALPHALOC_VERBOSE 0
 #endif
@@ -277,6 +290,10 @@ static void gps_task(void *arg) {
       continue;
     }
 
+#if ALPHALOC_LOG_NMEA
+    ESP_LOG_BUFFER_CHAR(TAG, rx_buf, len);
+#endif
+
     for (int i = 0; i < len; ++i) {
       char c = (char)rx_buf[i];
       if (c == '\n' || c == '\r') {
@@ -330,6 +347,30 @@ void gps_init(const gps_config_t *cfg) {
   memset(&s_latest_fix, 0, sizeof(s_latest_fix));
   memset(&s_status, 0, sizeof(s_status));
   s_last_no_fix_log_us = 0;
+
+#if ALPHALOC_FAKE_GPS
+  if (xSemaphoreTake(s_fix_mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+    const int64_t now = esp_timer_get_time();
+    s_latest_fix.lat_deg = FAKE_LAT_DEG;
+    s_latest_fix.lon_deg = FAKE_LON_DEG;
+    s_latest_fix.valid = true;
+    s_latest_fix.time_valid = true;
+    s_latest_fix.year = FAKE_YEAR;
+    s_latest_fix.month = FAKE_MONTH;
+    s_latest_fix.day = FAKE_DAY;
+    s_latest_fix.hour = FAKE_HOUR;
+    s_latest_fix.minute = FAKE_MINUTE;
+    s_latest_fix.second = FAKE_SECOND;
+    s_latest_fix.last_fix_time_us = now;
+    s_latest_fix.last_update_time_us = now;
+    s_status.has_lock = true;
+    s_status.satellites = 8;
+    s_status.constellations = GPS_CONSTELLATION_GPS;
+    xSemaphoreGive(s_fix_mutex);
+  }
+  ESP_LOGI(TAG, "Fake GPS enabled");
+  return;
+#endif
 
   uart_config_t uart_cfg = {
       .baud_rate = s_cfg.baud_rate,
