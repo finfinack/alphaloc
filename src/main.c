@@ -226,12 +226,25 @@ void app_main(void) {
   ble_client_init(&s_cfg);
   ble_client_set_focus_callback(focus_update_cb, &s_cfg);
 
-  xTaskCreate(location_publisher_task, "location_pub", 4096, &s_cfg, 5, NULL);
+  BaseType_t ret;
+  ret = xTaskCreate(location_publisher_task, "location_pub", 4096, &s_cfg, 5,
+                    NULL);
+  if (ret != pdPASS) {
+    ESP_LOGE(TAG, "Failed to create location_publisher_task");
+  }
+
   if (s_cfg.config_window_s > 0) {
-    xTaskCreate(config_window_task, "config_window", 4096, &s_cfg, 5, NULL);
+    ret =
+        xTaskCreate(config_window_task, "config_window", 4096, &s_cfg, 5, NULL);
+    if (ret != pdPASS) {
+      ESP_LOGE(TAG, "Failed to create config_window_task");
+    }
   }
 #ifdef ALPHALOC_NEOPIXEL_PIN
-  xTaskCreate(status_led_task, "status_led", 3072, &s_cfg, 1, NULL);
+  ret = xTaskCreate(status_led_task, "status_led", 3072, &s_cfg, 1, NULL);
+  if (ret != pdPASS) {
+    ESP_LOGE(TAG, "Failed to create status_led_task");
+  }
 #endif
   ESP_LOGI(TAG, "AlphaLoc started");
 }
