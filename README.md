@@ -56,7 +56,7 @@ The NeoPixel LED provides a visual "heartbeat" every 5 seconds. It flashes multi
     *   🔴 **Red**: Not connected.
 2.  **Second Flash: GPS Fix**
     *   🟢 **Green**: Valid 3D GPS Fix acquired.
-    *   🟣 **Violet**: Valid *fake* GPS fix (when `ALPHALOC_FAKE_GPS=1`).
+    *   🟣 **Violet**: *Fake* GPS fix (injected when `ALPHALOC_FAKE_GPS=1`).
     *   🔴 **Red**: No fix (searching for satellites).
 3.  **Third Flash: Battery Level (Optional)**
     *   🟢 **Green**: > 50%
@@ -68,10 +68,10 @@ The NeoPixel LED provides a visual "heartbeat" every 5 seconds. It flashes multi
     *   ⚫ **(Off)**: Config window closed, WiFi disabled to save power.
 
 **Example**:
-*   🔴-🔴-🟢-🔵: No Camera, No GPS, Battery Good, Config Mode Active (Just turned on).
-*   🔵-🟢-🟡-⚫: Camera Connected (Not Bonded Yet), GPS Fixed, Battery Medium, Normal Operation (Config closed).
-*   🟢-🟢-🔴-⚫: Camera Connected (Bonded), GPS Fixed, Battery Low, Normal Operation (Config closed).
-*   🔵-🟣-🟢-⚫: Camera Connected (Not Bonded Yet), Fake GPS Fixed, Battery Good, Normal Operation (Config closed).
+*   🔴-🔴-🟢-🔵: No camera, no GPS, battery good, config mode active (just turned on).
+*   🔵-🟢-🟡-⚫: Camera connected (not bonded yet), GPS fixed, battery medium, normal operation (config closed).
+*   🟢-🟢-🔴-⚫: Camera connected (bonded), GPS fixed, battery low, normal operation (config closed).
+*   🔵-🟣-🟢-⚫: Camera connected (not bonded yet), fake GPS fixed, battery good, normal operation (config closed).
 
 ### 4. Configuration
 
