@@ -22,8 +22,7 @@ void config_set_defaults(app_config_t *cfg)
   cfg->ble_passkey = 123456;
   cfg->tz_offset_min = 60;
   cfg->dst_offset_min = 60;
-  // cfg->wifi_mode = APP_WIFI_MODE_STA;
-  cfg->wifi_mode = APP_WIFI_MODE_AP;
+  cfg->wifi_mode = ALPHALOC_WIFI_MODE;
   strncpy(cfg->camera_name_prefix, "SonyA7",
           sizeof(cfg->camera_name_prefix) - 1);
   cfg->camera_mac_prefix[0] = '\0';

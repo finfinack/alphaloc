@@ -94,17 +94,17 @@ On startup, AlphaLoc enters a **Configuration Window** (default 5 minutes). Duri
 
 #### Method A: WiFi Web Interface
 
-By default, the device attempts to connect to a WiFi network.
+By default, the device creates an access point:
+
+- **SSID**: `AlphaLoc`
+- **Password**: `alphaloc1234`
+- **IP**: `192.168.4.1` (direct link to webserver: http://192.168.4.1/)
+
+See the build flag (`ALPHALOC_WIFI_WEB=1` in `platformio.ini`) to enable it acting as a wifi client:
 
 - **Default SSID**: `WiFi`
 - **Default Password**: `changeme`
-- **Mode**: TCP Station (Client)
-
-If you compile with `APP_WIFI_MODE_AP` (or change it via BLE/Code), it acts as an Access Point:
-
-- **AP SSID**: `AlphaLoc`
-- **AP Password**: `alphaloc1234`
-- **IP**: `192.168.4.1`
+- **IP**: assigned via DHCP
 
 Navigate to the device IP in your browser to access the config page.
 
@@ -244,26 +244,31 @@ The `platformio.ini` file defines several build environments for different purpo
     *   Enables verbose logging (`ALPHALOC_VERBOSE=1`).
     *   **Enables Fake GPS (`ALPHALOC_FAKE_GPS=1`)**: Simulates a stationary location (Munich) for testing without a GPS module or satellite lock.
 *   **`env:esp32c6-debug-gps`**: Debugging environment using *real* GPS data but with verbose logging enabled.
+*   **`env:esp32s3`**: The standard production build for the ESP32-S3. Logging is disabled for performance.
+*   **`env:esp32s3-debug`**: A debugging environment.
+    *   Enables verbose logging (`ALPHALOC_VERBOSE=1`).
+    *   **Enables Fake GPS (`ALPHALOC_FAKE_GPS=1`)**: Simulates a stationary location (Munich) for testing without a GPS module or satellite lock.
 *   **`env:esp32s3-debug-gps`**: Debugging environment using *real* GPS data but with verbose logging enabled.
 
 ### Build Flags
 
 You can customize the firmware behavior using these compilation flags in `platformio.ini`:
 
-| Flag | Description | Default | Security Impact |
-|------|-------------|---------|----------------|
-| `ALPHALOC_WIFI_WEB` | Enable internal settings web server. Set to `0` to remove WiFi stack and save power/flash. | `1` | Medium - protect WiFi credentials |
-| `ALPHALOC_BLE_CONFIG` | **Enable BLE configuration service.** | `0` (DISABLED) | **🔴 CRITICAL** - Exposes all settings via unencrypted BLE |
-| `ALPHALOC_VERBOSE` | Enable extensive debug logging to serial UART. | `0` | Low - may log sensitive data |
-| `ALPHALOC_FAKE_GPS` | Ignore UART GPS and output a static test location. | `0` | None |
-| `ALPHALOC_NEOPIXEL_PIN`| GPIO pin number for the WS2812B NeoPixel. | (Board dependent) | None |
-| `ALPHALOC_BATTERY_MONITOR` | Enable MAX17048 / LC709203F battery monitor over I2C. | `0` | None |
-| `ALPHALOC_BATTERY_SDA_PIN` | I2C SDA pin for battery monitor. | (Board dependent) | None |
-| `ALPHALOC_BATTERY_SCL_PIN` | I2C SCL pin for battery monitor. | (Board dependent) | None |
-| `ALPHALOC_BATTERY_I2C_POWER_PIN` | Optional power-enable pin for I2C battery monitor. | (Unset) | None |
-| `GPS_UART_TX_PIN` | TX Pin for GPS Serial (Connects to GPS RX). | (Board dependent) | None |
-| `GPS_UART_RX_PIN` | RX Pin for GPS Serial (Connects to GPS TX). | (Board dependent) | None |
-| `DALPHALOC_FACTORY_RESET` | If set to `1`, wipes NVS settings on boot. Dangerous. | Undefined | Medium - enables data wipe |
+| Flag | Description | Default |
+|------|-------------|---------|
+| `ALPHALOC_WIFI_WEB` | Enable internal settings web server. Set to `0` to remove WiFi stack and save power/flash. | `1` |
+| `ALPHALOC_WIFI_MODE` | Default WiFi mode (`0` -> `APP_WIFI_MODE_AP` or `1` -> `APP_WIFI_MODE_STA`) used on first boot or after factory reset. | `APP_WIFI_MODE_AP` |
+| `ALPHALOC_BLE_CONFIG` | **Enable BLE configuration service.** Note: This allows reading and writing the config via BLE unauthenticated! | `0` (DISABLED) |
+| `ALPHALOC_VERBOSE` | Enable extensive debug logging to serial UART. | `0` |
+| `ALPHALOC_FAKE_GPS` | Ignore UART GPS and output a static test location. | `0` |
+| `ALPHALOC_NEOPIXEL_PIN`| GPIO pin number for the WS2812B NeoPixel. | (Board dependent) |
+| `ALPHALOC_BATTERY_MONITOR` | Enable MAX17048 / LC709203F battery monitor over I2C. | `0` |
+| `ALPHALOC_BATTERY_SDA_PIN` | I2C SDA pin for battery monitor. | (Board dependent) |
+| `ALPHALOC_BATTERY_SCL_PIN` | I2C SCL pin for battery monitor. | (Board dependent) |
+| `ALPHALOC_BATTERY_I2C_POWER_PIN` | Optional power-enable pin for I2C battery monitor. | (Unset) |
+| `GPS_UART_TX_PIN` | TX Pin for GPS Serial (Connects to GPS RX). | (Board dependent) |
+| `GPS_UART_RX_PIN` | RX Pin for GPS Serial (Connects to GPS TX). | (Board dependent) |
+| `DALPHALOC_FACTORY_RESET` | If set to `1`, wipes NVS settings on boot. Dangerous. | Undefined |
 
 **Security Best Practices:**
 - Keep `ALPHALOC_BLE_CONFIG=0` in production builds

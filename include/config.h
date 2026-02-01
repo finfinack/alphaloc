@@ -8,12 +8,18 @@
 #define CONFIG_STR_MAX_64 64
 #define CONFIG_STR_MAX_18 18
 
-typedef enum {
+#ifndef ALPHALOC_WIFI_MODE
+#define ALPHALOC_WIFI_MODE APP_WIFI_MODE_AP
+#endif
+
+typedef enum
+{
   APP_WIFI_MODE_AP = 0,
   APP_WIFI_MODE_STA = 1,
 } app_wifi_mode_t;
 
-typedef struct {
+typedef struct
+{
   uint32_t gps_interval_ms;
   uint32_t max_gps_age_s;
   uint32_t config_window_s;
