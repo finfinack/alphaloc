@@ -157,11 +157,15 @@ static void status_led_task(void *arg) {
     neopixel_set_rgb(0, 0, 0);
     vTaskDelay(off_ms);
 
-    // GPS status: green if fix is valid, red if not.
+    // GPS status: green if fix is valid, red if not. Fake GPS shows violet.
     gps_fix_t fix;
     bool gps_ok = gps_get_latest(&fix) && fix.valid;
     if (gps_ok) {
+#if ALPHALOC_FAKE_GPS
+      neopixel_set_rgb(128, 0, 255);
+#else
       neopixel_set_rgb(0, 255, 0);
+#endif
     } else {
       neopixel_set_rgb(255, 0, 0);
     }

@@ -56,6 +56,7 @@ The NeoPixel LED provides a visual "heartbeat" every 3 seconds. It flashes multi
     *   🔴 **Red**: Not connected.
 2.  **Second Flash: GPS Fix**
     *   🟢 **Green**: Valid 3D GPS Fix acquired.
+    *   🟣 **Violet**: Valid *fake* GPS fix (when `ALPHALOC_FAKE_GPS=1`).
     *   🔴 **Red**: No fix (searching for satellites).
 3.  **Third Flash: WiFi/Config (Optional)**
     *   Only appears during the startup "Config Window" (first 5 minutes).
@@ -66,6 +67,7 @@ The NeoPixel LED provides a visual "heartbeat" every 3 seconds. It flashes multi
 *   🔴-🔴-🔵: No Camera, No GPS, Config Mode Active (Just turned on).
 *   🔵-🟢-⚫: Camera Connected (Not Bonded Yet), GPS Fixed, Normal Operation (Config closed).
 *   🟢-🟢-⚫: Camera Connected (Bonded), GPS Fixed, Normal Operation (Config closed).
+*   🔵-🟣-⚫: Camera Connected (Not Bonded Yet), Fake GPS Fixed, Normal Operation (Config closed).
 
 ### 4. Configuration
 
