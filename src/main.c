@@ -15,6 +15,14 @@
 #include "gps.h"
 #include "nvs_flash.h"
 
+#ifndef ALPHALOC_BATTERY_MONITOR
+#define ALPHALOC_BATTERY_MONITOR 0
+#endif
+
+#if ALPHALOC_BATTERY_MONITOR
+#include "battery.h"
+#endif
+
 #ifdef ALPHALOC_NEOPIXEL_PIN
 #include "neopixel.h"
 #endif
@@ -129,13 +137,24 @@ static void config_window_task(void *arg) {
   vTaskDelete(NULL);
 }
 
+#if ALPHALOC_BATTERY_MONITOR
+static void battery_task(void *arg) {
+  (void)arg;
+  battery_read_now();
+  while (true) {
+    vTaskDelay(pdMS_TO_TICKS(60000));
+    battery_read_now();
+  }
+}
+#endif
+
 #ifdef ALPHALOC_NEOPIXEL_PIN
 static void status_led_task(void *arg) {
   const app_config_t *cfg = (const app_config_t *)arg;
   const uint8_t brightness = 8;
   const TickType_t on_ms = pdMS_TO_TICKS(150);
   const TickType_t off_ms = pdMS_TO_TICKS(150);
-  const TickType_t cycle_ms = pdMS_TO_TICKS(3000);
+  const TickType_t cycle_ms = pdMS_TO_TICKS(5000);
 
   neopixel_init(ALPHALOC_NEOPIXEL_PIN, brightness);
 
@@ -172,6 +191,23 @@ static void status_led_task(void *arg) {
     vTaskDelay(on_ms);
     neopixel_set_rgb(0, 0, 0);
     vTaskDelay(off_ms);
+
+    // Battery status: green >50%, yellow >30%, red otherwise (if enabled).
+#if ALPHALOC_BATTERY_MONITOR
+    battery_status_t bat = {0};
+    if (battery_get_status(&bat) && bat.valid) {
+      if (bat.percent > 50.0f) {
+        neopixel_set_rgb(0, 255, 0);
+      } else if (bat.percent > 30.0f) {
+        neopixel_set_rgb(255, 180, 0);
+      } else {
+        neopixel_set_rgb(255, 0, 0);
+      }
+      vTaskDelay(on_ms);
+      neopixel_set_rgb(0, 0, 0);
+      vTaskDelay(off_ms);
+    }
+#endif
 
     // Wi-Fi status: blue if web server/AP active.
 #if ALPHALOC_WIFI_WEB
@@ -251,6 +287,13 @@ void app_main(void) {
   ble_client_set_focus_callback(focus_update_cb, &s_cfg);
 
   BaseType_t ret;
+#if ALPHALOC_BATTERY_MONITOR
+  battery_init();
+  ret = xTaskCreate(battery_task, "battery", 3072, NULL, 4, NULL);
+  if (ret != pdPASS) {
+    ESP_LOGE(TAG, "Failed to create battery_task");
+  }
+#endif
   ret = xTaskCreate(location_publisher_task, "location_pub", 4096, &s_cfg, 5,
                     NULL);
   if (ret != pdPASS) {

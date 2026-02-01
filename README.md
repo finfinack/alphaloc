@@ -7,7 +7,7 @@ AlphaLoc is an ESP32 application that allows embedding GPS location data directl
 - **Automatic Geotagging**: Sends GPS coordinates (Latitude, Longitude, Altitude, Time) to the camera.
 - **BLE Connection**: Emulates a smartphone location provider for Sony cameras.
 - **Dual Configuration**: Configurable via a Web Interface (WiFi) or BLE characteristics.
-- **Status Indicators**: NeoPixel (RGB LED) feedback for Camera connection, GPS fix, and WiFi status.
+- **Status Indicators**: NeoPixel (RGB LED) feedback for Camera connection, GPS fix, Battery, and WiFi status.
 - **Low Power**: Supports disabling external peripherals (like Stemma QT) to save power.
 
 ## Hardware Support
@@ -46,9 +46,9 @@ You can easily adapt it to other ESP32 boards by modifying `platformio.ini`.
 
 ### 3. LED Status Codes
 
-The NeoPixel LED provides a visual "heartbeat" every 3 seconds. It flashes multiple colors in sequence to report the status of different subsystems:
+The NeoPixel LED provides a visual "heartbeat" every 5 seconds. It flashes multiple colors in sequence to report the status of different subsystems:
 
-**Sequence:** [Camera Status] -> [GPS Status] -> [WiFi Status] -> [Sleep]
+**Sequence:** [Camera Status] -> [GPS Status] -> [Battery Status] -> [WiFi Status] -> [Sleep]
 
 1.  **First Flash: Camera Connection**
     *   🟢 **Green**: Connected to camera and bonded.
@@ -58,16 +58,20 @@ The NeoPixel LED provides a visual "heartbeat" every 3 seconds. It flashes multi
     *   🟢 **Green**: Valid 3D GPS Fix acquired.
     *   🟣 **Violet**: Valid *fake* GPS fix (when `ALPHALOC_FAKE_GPS=1`).
     *   🔴 **Red**: No fix (searching for satellites).
-3.  **Third Flash: WiFi/Config (Optional)**
+3.  **Third Flash: Battery Level (Optional)**
+    *   🟢 **Green**: > 50%
+    *   🟡 **Yellow**: > 30%
+    *   🔴 **Red**: <= 30%
+4.  **Fourth Flash: WiFi/Config (Optional)**
     *   Only appears during the startup "Config Window" (first 5 minutes).
     *   🔵 **Blue**: Web server is active.
     *   ⚫ **(Off)**: Config window closed, WiFi disabled to save power.
 
 **Example**:
-*   🔴-🔴-🔵: No Camera, No GPS, Config Mode Active (Just turned on).
-*   🔵-🟢-⚫: Camera Connected (Not Bonded Yet), GPS Fixed, Normal Operation (Config closed).
-*   🟢-🟢-⚫: Camera Connected (Bonded), GPS Fixed, Normal Operation (Config closed).
-*   🔵-🟣-⚫: Camera Connected (Not Bonded Yet), Fake GPS Fixed, Normal Operation (Config closed).
+*   🔴-🔴-🟢-🔵: No Camera, No GPS, Battery Good, Config Mode Active (Just turned on).
+*   🔵-🟢-🟡-⚫: Camera Connected (Not Bonded Yet), GPS Fixed, Battery Medium, Normal Operation (Config closed).
+*   🟢-🟢-🔴-⚫: Camera Connected (Bonded), GPS Fixed, Battery Low, Normal Operation (Config closed).
+*   🔵-🟣-🟢-⚫: Camera Connected (Not Bonded Yet), Fake GPS Fixed, Battery Good, Normal Operation (Config closed).
 
 ### 4. Configuration
 
@@ -253,6 +257,10 @@ You can customize the firmware behavior using these compilation flags in `platfo
 | `ALPHALOC_VERBOSE` | Enable extensive debug logging to serial UART. | `0` | Low - may log sensitive data |
 | `ALPHALOC_FAKE_GPS` | Ignore UART GPS and output a static test location. | `0` | None |
 | `ALPHALOC_NEOPIXEL_PIN`| GPIO pin number for the WS2812B NeoPixel. | (Board dependent) | None |
+| `ALPHALOC_BATTERY_MONITOR` | Enable MAX17048 / LC709203F battery monitor over I2C. | `0` | None |
+| `ALPHALOC_BATTERY_SDA_PIN` | I2C SDA pin for battery monitor. | (Board dependent) | None |
+| `ALPHALOC_BATTERY_SCL_PIN` | I2C SCL pin for battery monitor. | (Board dependent) | None |
+| `ALPHALOC_BATTERY_I2C_POWER_PIN` | Optional power-enable pin for I2C battery monitor. | (Unset) | None |
 | `GPS_UART_TX_PIN` | TX Pin for GPS Serial (Connects to GPS RX). | (Board dependent) | None |
 | `GPS_UART_RX_PIN` | RX Pin for GPS Serial (Connects to GPS TX). | (Board dependent) | None |
 | `DALPHALOC_FACTORY_RESET` | If set to `1`, wipes NVS settings on boot. Dangerous. | Undefined | Medium - enables data wipe |
