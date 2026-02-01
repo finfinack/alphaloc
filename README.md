@@ -25,7 +25,7 @@ You can easily adapt it to other ESP32 boards by modifying `platformio.ini`.
 
 ### 1. Initial Setup
 
-1. Connect your GPS module (e.g., GY-GPS6MV2) to the defined TX/RX pins.
+1. Connect your GPS module (e.g., GY-GPS6MV2 or an Adafruit Ultimate GPS Featherwing) to the defined TX/RX pins.
 
 2. Flash the firmware using PlatformIO.
 
@@ -78,6 +78,8 @@ The NeoPixel LED provides a visual "heartbeat" every 5 seconds. It flashes multi
 > **⚠️ SECURITY WARNING**: The BLE configuration service is **DISABLED by default** for security reasons. When enabled, it allows **UNAUTHENTICATED access** to device settings including WiFi passwords. Only enable it (`ALPHALOC_BLE_CONFIG=1`) in trusted environments or for initial setup, then rebuild with it disabled.
 
 On startup, AlphaLoc enters a **Configuration Window** (default 5 minutes). During this time, you can change settings via WiFi (if `ALPHALOC_WIFI_WEB=1`) or BLE (if `ALPHALOC_BLE_CONFIG=1`).
+
+<img width="603" height="902" alt="web" src="https://github.com/user-attachments/assets/bd50c0e7-f0e7-41f6-8e6a-0d7c2ba5bdf6" />
 
 #### Configuration Parameters
 
