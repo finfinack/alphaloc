@@ -16,8 +16,8 @@ The project is set up for **PlatformIO** and currently supports:
 
 | Board | Environment | Pinout |
 |-------|-------------|--------|
-| **DFRobot Beetle ESP32-C6** | `esp32c6` | GPS TX: 5, GPS RX: 4, NeoPixel: 6 |
-| **Adafruit Feather ESP32-S3** | `esp32s3` | GPS TX: 38, GPS RX: 39, NeoPixel: 6 |
+| [**DFRobot Beetle ESP32-C6**](https://wiki.dfrobot.com/SKU_DFR1117_Beetle_ESP32_C6) | `esp32c6` | GPS TX: 5, GPS RX: 4, NeoPixel: 6 |
+| [**Adafruit Feather ESP32-S3**](https://learn.adafruit.com/adafruit-esp32-s3-feather/overview)| `esp32s3` | GPS TX: 38, GPS RX: 39, NeoPixel: 6 |
 
 You can easily adapt it to other ESP32 boards by modifying `platformio.ini`.
 
