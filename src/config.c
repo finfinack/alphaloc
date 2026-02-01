@@ -13,7 +13,8 @@
 static const char *TAG = "config";
 static SemaphoreHandle_t s_config_mutex = NULL;
 
-void config_set_defaults(app_config_t *cfg) {
+void config_set_defaults(app_config_t *cfg)
+{
   memset(cfg, 0, sizeof(*cfg));
   cfg->gps_interval_ms = 5000;
   cfg->max_gps_age_s = 300;
@@ -21,7 +22,8 @@ void config_set_defaults(app_config_t *cfg) {
   cfg->ble_passkey = 123456;
   cfg->tz_offset_min = 60;
   cfg->dst_offset_min = 60;
-  cfg->wifi_mode = APP_WIFI_MODE_STA;
+  // cfg->wifi_mode = APP_WIFI_MODE_STA;
+  cfg->wifi_mode = APP_WIFI_MODE_AP;
   strncpy(cfg->camera_name_prefix, "SonyA7",
           sizeof(cfg->camera_name_prefix) - 1);
   cfg->camera_mac_prefix[0] = '\0';
@@ -32,25 +34,30 @@ void config_set_defaults(app_config_t *cfg) {
 }
 
 static void config_read_str(nvs_handle_t nvs, const char *key, char *out,
-                            size_t out_len) {
+                            size_t out_len)
+{
   size_t len = out_len;
   esp_err_t err = nvs_get_str(nvs, key, out, &len);
-  if (err != ESP_OK) {
+  if (err != ESP_OK)
+  {
     out[0] = '\0';
   }
 }
 
-bool config_load(app_config_t *cfg) {
+bool config_load(app_config_t *cfg)
+{
   config_set_defaults(cfg);
 
   // Initialize mutex on first load
-  if (s_config_mutex == NULL) {
+  if (s_config_mutex == NULL)
+  {
     s_config_mutex = xSemaphoreCreateMutex();
   }
 
   nvs_handle_t nvs;
   esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READONLY, &nvs);
-  if (err != ESP_OK) {
+  if (err != ESP_OK)
+  {
     ESP_LOGW(TAG, "NVS open failed, using defaults: %s", esp_err_to_name(err));
     return false;
   }
@@ -61,15 +68,18 @@ bool config_load(app_config_t *cfg) {
   nvs_get_u32(nvs, "ble_pass", &cfg->ble_passkey);
   uint16_t tz = cfg->tz_offset_min;
   uint16_t dst = cfg->dst_offset_min;
-  if (nvs_get_u16(nvs, "tz_off", &tz) == ESP_OK) {
+  if (nvs_get_u16(nvs, "tz_off", &tz) == ESP_OK)
+  {
     cfg->tz_offset_min = tz;
   }
-  if (nvs_get_u16(nvs, "dst_off", &dst) == ESP_OK) {
+  if (nvs_get_u16(nvs, "dst_off", &dst) == ESP_OK)
+  {
     cfg->dst_offset_min = dst;
   }
 
   uint8_t wifi_mode = cfg->wifi_mode;
-  if (nvs_get_u8(nvs, "wifi_mode", &wifi_mode) == ESP_OK) {
+  if (nvs_get_u8(nvs, "wifi_mode", &wifi_mode) == ESP_OK)
+  {
     cfg->wifi_mode = (app_wifi_mode_t)wifi_mode;
   }
 
@@ -86,19 +96,23 @@ bool config_load(app_config_t *cfg) {
   return true;
 }
 
-bool config_save(const app_config_t *cfg) {
+bool config_save(const app_config_t *cfg)
+{
   // Protect concurrent config save operations
   if (s_config_mutex &&
-      xSemaphoreTake(s_config_mutex, pdMS_TO_TICKS(1000)) != pdTRUE) {
+      xSemaphoreTake(s_config_mutex, pdMS_TO_TICKS(1000)) != pdTRUE)
+  {
     ESP_LOGW(TAG, "Failed to acquire config mutex");
     return false;
   }
 
   nvs_handle_t nvs;
   esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &nvs);
-  if (err != ESP_OK) {
+  if (err != ESP_OK)
+  {
     ESP_LOGE(TAG, "NVS open failed: %s", esp_err_to_name(err));
-    if (s_config_mutex) {
+    if (s_config_mutex)
+    {
       xSemaphoreGive(s_config_mutex);
     }
     return false;
@@ -122,11 +136,13 @@ bool config_save(const app_config_t *cfg) {
   err = nvs_commit(nvs);
   nvs_close(nvs);
 
-  if (s_config_mutex) {
+  if (s_config_mutex)
+  {
     xSemaphoreGive(s_config_mutex);
   }
 
-  if (err != ESP_OK) {
+  if (err != ESP_OK)
+  {
     ESP_LOGE(TAG, "NVS commit failed: %s", esp_err_to_name(err));
     return false;
   }
