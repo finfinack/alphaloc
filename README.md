@@ -21,6 +21,26 @@ The project is set up for **PlatformIO** and currently supports:
 
 You can easily adapt it to other ESP32 boards by modifying `platformio.ini`.
 
+### Parts List
+
+The following is a parts list of what I ended up with.
+
+- [Adafruit ESP32-S3 Feather](https://www.adafruit.com/product/5885), [Overview](https://learn.adafruit.com/adafruit-esp32-s3-feather/overview)
+- [Adafruit Ultimate GPS featherwing](https://learn.adafruit.com/adafruit-ultimate-gps-featherwing)
+- [SparkFun RGB LED Breakout - WS2812B](https://www.sparkfun.com/sparkfun-rgb-led-breakout-ws2812b.html)
+- [Adafruit WiFi Antenna with w.FL / MHF3 / IPEX3 Connector](https://www.adafruit.com/product/5445)
+    - This is optional if you don't have an ESP32 with a PCB antenna.
+- Mini sliding switch (8.5mm x 3.7mm, 3 pin, slider 4mm tall)
+- The antenna of a GY-GPS6MV2
+- 2x Panasonic NCR18650GA Battery (3450mAh)
+- Wires, electrical tape and whatnot
+
+### Models
+
+- [**Holder**](model/holder.3mf): Holder for the batteries, ESP32, optional wifi antenna, ...
+- [**Cover**](model/cover.3mf): Cover with a press fit for the holder and room for the LED board.
+- [**Cover Large**](model/cover_large.3mf): Same as cover but taller and with room for a larger, external GPS antenna.
+
 ## Usage
 
 ### 1. Initial Setup
