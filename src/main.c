@@ -126,8 +126,9 @@ static void config_window_task(void *arg) {
 #if ALPHALOC_WIFI_WEB
   wifi_web_start(cfg);
 #endif
+  s_config_window_end_time_us =
+      esp_timer_get_time() + ((int64_t)cfg->config_window_s * 1000000LL);
   vTaskDelay(pdMS_TO_TICKS(cfg->config_window_s * 1000));
-  s_config_window_end_time_us = esp_timer_get_time();
 #if ALPHALOC_BLE_CONFIG
   ble_config_server_stop();
 #endif
