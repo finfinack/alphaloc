@@ -10,6 +10,7 @@
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
+#include "esp_timer.h"
 #include "gps.h"
 
 #ifndef ALPHALOC_BATTERY_MONITOR
@@ -25,6 +26,8 @@ static const char *TAG = "wifi_web";
 static httpd_handle_t s_server;
 static app_config_t *s_cfg;
 static esp_netif_t *s_netif = NULL;
+static esp_netif_t *s_netif_sta = NULL;
+static esp_netif_t *s_netif_ap = NULL;
 static const char *constellation_to_str(gps_constellation_t mask) {
   if (mask == (GPS_CONSTELLATION_GPS | GPS_CONSTELLATION_GLONASS)) {
     return "gps+glonass";
@@ -39,14 +42,62 @@ static const char *constellation_to_str(gps_constellation_t mask) {
 }
 static bool s_started;
 static bool s_wifi_handlers_registered = false;
+static int64_t s_sta_start_us = 0;
+static bool s_ap_active = false;
+
+#ifndef ALPHALOC_WIFI_STA_FALLBACK_TIMEOUT_MS
+#define ALPHALOC_WIFI_STA_FALLBACK_TIMEOUT_MS 15000
+#endif
+
+static void start_softap(void) {
+  if (!s_netif_ap) {
+    s_netif_ap = esp_netif_create_default_wifi_ap();
+  }
+  wifi_config_t wifi_cfg = {0};
+  strncpy((char *)wifi_cfg.ap.ssid, s_cfg->ap_ssid,
+          sizeof(wifi_cfg.ap.ssid) - 1);
+  wifi_cfg.ap.ssid_len = strlen((char *)wifi_cfg.ap.ssid);
+  strncpy((char *)wifi_cfg.ap.password, s_cfg->ap_pass,
+          sizeof(wifi_cfg.ap.password) - 1);
+  wifi_cfg.ap.authmode = strlen((char *)wifi_cfg.ap.password) == 0
+                             ? WIFI_AUTH_OPEN
+                             : WIFI_AUTH_WPA2_PSK;
+  wifi_cfg.ap.max_connection = 4;
+
+  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+  ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_cfg));
+  s_ap_active = true;
+  ESP_LOGI(TAG, "Started AP fallback: ssid=%s", s_cfg->ap_ssid);
+}
 
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data) {
-  if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+  if (event_base != WIFI_EVENT) {
+    return;
+  }
+
+  if (event_id == WIFI_EVENT_STA_CONNECTED) {
+    ESP_LOGI(TAG, "WiFi STA connected");
+    return;
+  }
+
+  if (event_id == WIFI_EVENT_STA_DISCONNECTED) {
     const wifi_event_sta_disconnected_t *disc =
         (const wifi_event_sta_disconnected_t *)event_data;
-    ESP_LOGW(TAG, "WiFi disconnected, reason=%u; retrying",
-             disc ? (unsigned)disc->reason : 0);
+    unsigned reason = disc ? (unsigned)disc->reason : 0;
+    int64_t elapsed_ms = 0;
+    if (s_sta_start_us > 0) {
+      elapsed_ms = (esp_timer_get_time() - s_sta_start_us) / 1000;
+    }
+
+    ESP_LOGW(TAG, "WiFi disconnected, reason=%u", reason);
+
+    if (elapsed_ms >= ALPHALOC_WIFI_STA_FALLBACK_TIMEOUT_MS && !s_ap_active) {
+      ESP_LOGW(TAG, "STA connect timed out, falling back to AP");
+      start_softap();
+      return;
+    }
+
     esp_wifi_connect();
   }
 }
@@ -180,11 +231,6 @@ static esp_err_t handle_root(httpd_req_t *req) {
       "<label>Camera MAC prefix</label><input name=\"cam_mac\" value=\"%s\">"
       "<label>TZ offset (minutes)</label><input name=\"tz\" value=\"%u\">"
       "<label>DST offset (minutes)</label><input name=\"dst\" value=\"%u\">"
-      "<label>WiFi mode</label>"
-      "<select name=\"wifi_mode\">"
-      "<option value=\"0\" %s>AP</option>"
-      "<option value=\"1\" %s>STA</option>"
-      "</select>"
       "<label>WiFi SSID (STA)</label><input name=\"wifi_ssid\" value=\"%s\">"
       "<label>WiFi pass (STA)</label><input name=\"wifi_pass\" value=\"%s\">"
       "<label>AP SSID</label><input name=\"ap_ssid\" value=\"%s\">"
@@ -202,9 +248,7 @@ static esp_err_t handle_root(httpd_req_t *req) {
 #endif
       s_cfg->camera_name_prefix, s_cfg->camera_mac_prefix, s_cfg->tz_offset_min,
       s_cfg->dst_offset_min,
-      s_cfg->wifi_mode == APP_WIFI_MODE_AP ? "selected" : "",
-      s_cfg->wifi_mode == APP_WIFI_MODE_STA ? "selected" : "", s_cfg->wifi_ssid,
-      s_cfg->wifi_pass, s_cfg->ap_ssid, s_cfg->ap_pass,
+      s_cfg->wifi_ssid, s_cfg->wifi_pass, s_cfg->ap_ssid, s_cfg->ap_pass,
       (unsigned)s_cfg->max_gps_age_s);
 
   httpd_resp_set_type(req, "text/html");
@@ -246,14 +290,6 @@ static esp_err_t handle_save(httpd_req_t *req) {
   uint16_t dst = 0;
   if (parse_u16(value, &dst)) {
     s_cfg->dst_offset_min = dst;
-  }
-
-  form_get(body, "wifi_mode", value, sizeof(value));
-  if (strcmp(value, "0") == 0) {
-    s_cfg->wifi_mode = APP_WIFI_MODE_AP;
-  }
-  else if (strcmp(value, "1") == 0) {
-    s_cfg->wifi_mode = APP_WIFI_MODE_STA;
   }
 
   form_get(body, "wifi_ssid", value, sizeof(value));
@@ -299,53 +335,30 @@ void wifi_web_start(app_config_t *cfg) {
 
   ESP_ERROR_CHECK(esp_netif_init());
   ESP_ERROR_CHECK(esp_event_loop_create_default());
-
-  if (s_cfg->wifi_mode == APP_WIFI_MODE_STA) {
-    ESP_ERROR_CHECK(
-        esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID,
-                                   &wifi_event_handler, NULL));
-    s_wifi_handlers_registered = true;
-    s_netif = esp_netif_create_default_wifi_sta();
-  }
-  else {
-    s_netif = esp_netif_create_default_wifi_ap();
-  }
+  ESP_ERROR_CHECK(
+      esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID,
+                                 &wifi_event_handler, NULL));
+  s_wifi_handlers_registered = true;
+  s_netif_sta = esp_netif_create_default_wifi_sta();
+  s_netif = s_netif_sta;
 
   wifi_init_config_t cfg_init = WIFI_INIT_CONFIG_DEFAULT();
   ESP_ERROR_CHECK(esp_wifi_init(&cfg_init));
 
-  if (s_cfg->wifi_mode == APP_WIFI_MODE_STA) {
-    wifi_config_t wifi_cfg = {0};
-    strncpy((char *)wifi_cfg.sta.ssid, s_cfg->wifi_ssid,
-            sizeof(wifi_cfg.sta.ssid) - 1);
-    strncpy((char *)wifi_cfg.sta.password, s_cfg->wifi_pass,
-            sizeof(wifi_cfg.sta.password) - 1);
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg));
-  }
-  else {
-    wifi_config_t wifi_cfg = {0};
-    strncpy((char *)wifi_cfg.ap.ssid, s_cfg->ap_ssid,
-            sizeof(wifi_cfg.ap.ssid) - 1);
-    wifi_cfg.ap.ssid_len = strlen((char *)wifi_cfg.ap.ssid);
-    strncpy((char *)wifi_cfg.ap.password, s_cfg->ap_pass,
-            sizeof(wifi_cfg.ap.password) - 1);
-    wifi_cfg.ap.authmode = strlen((char *)wifi_cfg.ap.password) == 0
-                               ? WIFI_AUTH_OPEN
-                               : WIFI_AUTH_WPA2_PSK;
-    wifi_cfg.ap.max_connection = 4;
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_cfg));
-  }
+  wifi_config_t wifi_cfg = {0};
+  strncpy((char *)wifi_cfg.sta.ssid, s_cfg->wifi_ssid,
+          sizeof(wifi_cfg.sta.ssid) - 1);
+  strncpy((char *)wifi_cfg.sta.password, s_cfg->wifi_pass,
+          sizeof(wifi_cfg.sta.password) - 1);
+  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+  ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg));
 
   ESP_ERROR_CHECK(esp_wifi_start());
-  if (s_cfg->wifi_mode == APP_WIFI_MODE_STA) {
-    // Enable WiFi power saving in STA mode (Issue 3.2)
-    // esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
-    // ESP_LOGI(TAG, "WiFi power saving enabled");
-
-    esp_wifi_connect();
-  }
+  // Enable WiFi power saving in STA mode (Issue 3.2)
+  // esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+  // ESP_LOGI(TAG, "WiFi power saving enabled");
+  s_sta_start_us = esp_timer_get_time();
+  esp_wifi_connect();
 
   httpd_config_t server_cfg = HTTPD_DEFAULT_CONFIG();
   server_cfg.uri_match_fn = httpd_uri_match_wildcard;
@@ -377,10 +390,15 @@ void wifi_web_stop(void) {
   esp_wifi_deinit();
 
   // Clean up network interface to prevent memory leak
-  if (s_netif) {
-    esp_netif_destroy(s_netif);
-    s_netif = NULL;
+  if (s_netif_sta) {
+    esp_netif_destroy(s_netif_sta);
+    s_netif_sta = NULL;
   }
+  if (s_netif_ap) {
+    esp_netif_destroy(s_netif_ap);
+    s_netif_ap = NULL;
+  }
+  s_netif = NULL;
 
   if (s_wifi_handlers_registered) {
     esp_event_handler_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID,
@@ -392,5 +410,6 @@ void wifi_web_stop(void) {
   esp_event_loop_delete_default();
 
   s_started = false;
+  s_ap_active = false;
   ESP_LOGI(TAG, "WiFi web stopped");
 }

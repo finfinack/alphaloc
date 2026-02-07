@@ -22,7 +22,6 @@ void config_set_defaults(app_config_t *cfg)
   cfg->ble_passkey = 123456;
   cfg->tz_offset_min = 60;
   cfg->dst_offset_min = 60;
-  cfg->wifi_mode = ALPHALOC_WIFI_MODE;
   strncpy(cfg->camera_name_prefix, "SonyA7",
           sizeof(cfg->camera_name_prefix) - 1);
   cfg->camera_mac_prefix[0] = '\0';
@@ -76,12 +75,6 @@ bool config_load(app_config_t *cfg)
     cfg->dst_offset_min = dst;
   }
 
-  uint8_t wifi_mode = cfg->wifi_mode;
-  if (nvs_get_u8(nvs, "wifi_mode", &wifi_mode) == ESP_OK)
-  {
-    cfg->wifi_mode = (app_wifi_mode_t)wifi_mode;
-  }
-
   config_read_str(nvs, "cam_name", cfg->camera_name_prefix,
                   sizeof(cfg->camera_name_prefix));
   config_read_str(nvs, "cam_mac", cfg->camera_mac_prefix,
@@ -123,7 +116,6 @@ bool config_save(const app_config_t *cfg)
   nvs_set_u32(nvs, "ble_pass", cfg->ble_passkey);
   nvs_set_u16(nvs, "tz_off", cfg->tz_offset_min);
   nvs_set_u16(nvs, "dst_off", cfg->dst_offset_min);
-  nvs_set_u8(nvs, "wifi_mode", (uint8_t)cfg->wifi_mode);
 
   nvs_set_str(nvs, "cam_name", cfg->camera_name_prefix);
   nvs_set_str(nvs, "cam_mac", cfg->camera_mac_prefix);

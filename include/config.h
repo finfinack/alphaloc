@@ -8,16 +8,6 @@
 #define CONFIG_STR_MAX_64 64
 #define CONFIG_STR_MAX_18 18
 
-#ifndef ALPHALOC_WIFI_MODE
-#define ALPHALOC_WIFI_MODE APP_WIFI_MODE_AP
-#endif
-
-typedef enum
-{
-  APP_WIFI_MODE_AP = 0,
-  APP_WIFI_MODE_STA = 1,
-} app_wifi_mode_t;
-
 typedef struct
 {
   uint32_t gps_interval_ms;
@@ -28,7 +18,6 @@ typedef struct
   uint32_t ble_passkey;
   uint16_t tz_offset_min;
   uint16_t dst_offset_min;
-  app_wifi_mode_t wifi_mode;
   char wifi_ssid[CONFIG_STR_MAX_32];
   char wifi_pass[CONFIG_STR_MAX_64];
   char ap_ssid[CONFIG_STR_MAX_32];

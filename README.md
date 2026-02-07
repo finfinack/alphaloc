@@ -109,26 +109,25 @@ On startup, AlphaLoc enters a **Configuration Window** (default 5 minutes). Duri
 | **Camera MAC Prefix** | Connect only to a specific MAC address prefix. Empty matches any. | (Empty) |
 | **TZ Offset** | Timezone offset in minutes (e.g., `60` for UTC+1). | `60` |
 | **DST Offset** | Daylight Savings Time offset in minutes. | `60` |
-| **WiFi Mode** | `0` = Access Point (AP), `1` = Station (Client). | Station |
 | **WiFi SSID/Pass** | Credentials for connecting to your home WiFi. | `WiFi` / `changeme` |
 | **AP SSID/Pass** | Credentials for the hotspot created by AlphaLoc. | `AlphaLoc` / `alphaloc1234` |
 | **Max GPS Age** | How long (seconds) to reuse old coordinates if GPS signal is lost. | `300` |
 
 #### Method A: WiFi Web Interface
 
-By default, the device creates an access point:
-
-- **SSID**: `AlphaLoc`
-- **Password**: `alphaloc1234`
-- **IP**: `192.168.4.1` (direct link to webserver: http://192.168.4.1/)
-
-See the build flag (`ALPHALOC_WIFI_WEB=1` in `platformio.ini`) to enable it acting as a wifi client:
+AlphaLoc tries to connect to the configured WiFi as a client:
 
 - **Default SSID**: `WiFi`
 - **Default Password**: `changeme`
 - **IP**: assigned via DHCP
 
-Navigate to the device IP in your browser to access the config page.
+If it can't connect to the WiFi, it starts an access point itself:
+
+- **SSID**: `AlphaLoc`
+- **Password**: `alphaloc1234`
+- **IP**: `192.168.4.1` (direct link to webserver: http://192.168.4.1/)
+
+To enable this, set the build flag (`ALPHALOC_WIFI_WEB=1` in `platformio.ini`).
 
 #### Method B: BLE Configuration
 
@@ -142,7 +141,6 @@ You can use a generic BLE app (like nRF Connect) to write to the configuration s
 | Camera MAC Prefix   | `...03007EA1`         | R/W | String          | MAC address filter |
 | Timezone Offset     | `...04007EA1`         | R/W | String (Int)    | Minutes from UTC |
 | DST Offset          | `...05007EA1`         | R/W | String (Int)    | Daylight Savings offset (minutes) |
-| Wifi Mode           | `...06007EA1`         | R/W | String ("0"/"1")| 0=AP, 1=Station |
 | Wifi SSID           | `...07007EA1`         | R/W | String          | Station SSID |
 | Wifi Password       | `...08007EA1`         | R/W | String          | Station Password |
 | AP SSID             | `...09007EA1`         | R/W | String          | Access Point SSID |
@@ -279,7 +277,6 @@ You can customize the firmware behavior using these compilation flags in `platfo
 | Flag | Description | Default |
 |------|-------------|---------|
 | `ALPHALOC_WIFI_WEB` | Enable internal settings web server. Set to `0` to remove WiFi stack and save power/flash. | `1` |
-| `ALPHALOC_WIFI_MODE` | Default WiFi mode (`0` -> `APP_WIFI_MODE_AP` or `1` -> `APP_WIFI_MODE_STA`) used on first boot or after factory reset. | `APP_WIFI_MODE_AP` |
 | `ALPHALOC_BLE_CONFIG` | **Enable BLE configuration service.** Note: This allows reading and writing the config via BLE unauthenticated! | `0` (DISABLED) |
 | `ALPHALOC_VERBOSE` | Enable extensive debug logging to serial UART. | `0` |
 | `ALPHALOC_FAKE_GPS` | Ignore UART GPS and output a static test location. | `0` |

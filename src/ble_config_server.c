@@ -22,7 +22,6 @@ typedef enum {
   FIELD_CAM_MAC,
   FIELD_TZ_OFF,
   FIELD_DST_OFF,
-  FIELD_WIFI_MODE,
   FIELD_WIFI_SSID,
   FIELD_WIFI_PASS,
   FIELD_AP_SSID,
@@ -55,9 +54,6 @@ static const ble_uuid128_t k_chr_tz_uuid =
 static const ble_uuid128_t k_chr_dst_uuid =
     BLE_UUID128_INIT(0xB1, 0xF0, 0xB4, 0xD5, 0x79, 0x7B, 0x5A, 0x9E,
                      0x5B, 0x4F, 0x4A, 0x1F, 0x05, 0x00, 0x7E, 0xA1);
-static const ble_uuid128_t k_chr_wifi_mode_uuid =
-    BLE_UUID128_INIT(0xB1, 0xF0, 0xB4, 0xD5, 0x79, 0x7B, 0x5A, 0x9E,
-                     0x5B, 0x4F, 0x4A, 0x1F, 0x06, 0x00, 0x7E, 0xA1);
 static const ble_uuid128_t k_chr_wifi_ssid_uuid =
     BLE_UUID128_INIT(0xB1, 0xF0, 0xB4, 0xD5, 0x79, 0x7B, 0x5A, 0x9E,
                      0x5B, 0x4F, 0x4A, 0x1F, 0x07, 0x00, 0x7E, 0xA1);
@@ -132,10 +128,6 @@ static int gatt_access_cb(uint16_t conn_handle, uint16_t attr_handle,
         break;
       case FIELD_DST_OFF:
         snprintf(num_buf, sizeof(num_buf), "%u", s_cfg->dst_offset_min);
-        value = num_buf;
-        break;
-      case FIELD_WIFI_MODE:
-        snprintf(num_buf, sizeof(num_buf), "%u", (unsigned)s_cfg->wifi_mode);
         value = num_buf;
         break;
       case FIELD_WIFI_SSID:
@@ -215,16 +207,6 @@ static int gatt_access_cb(uint16_t conn_handle, uint16_t attr_handle,
         s_cfg->dst_offset_min = dst;
         break;
       }
-      case FIELD_WIFI_MODE: {
-        if (strcmp(buf, "0") == 0) {
-          s_cfg->wifi_mode = APP_WIFI_MODE_AP;
-        } else if (strcmp(buf, "1") == 0) {
-          s_cfg->wifi_mode = APP_WIFI_MODE_STA;
-        } else {
-          return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
-        }
-        break;
-      }
       case FIELD_WIFI_SSID:
         copy_str_field(s_cfg->wifi_ssid, sizeof(s_cfg->wifi_ssid), buf, strlen(buf));
         break;
@@ -283,10 +265,6 @@ static const struct ble_gatt_svc_def gatt_svcs[] = {
              .access_cb = gatt_access_cb,
              .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
              .arg = (void *)FIELD_DST_OFF},
-            {.uuid = &k_chr_wifi_mode_uuid.u,
-             .access_cb = gatt_access_cb,
-             .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
-             .arg = (void *)FIELD_WIFI_MODE},
             {.uuid = &k_chr_wifi_ssid_uuid.u,
              .access_cb = gatt_access_cb,
              .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
