@@ -4,6 +4,7 @@
 ### Custom ###
 
 .vscode
+platformio.secrets.ini
 
 ### macOS ###
 # General
