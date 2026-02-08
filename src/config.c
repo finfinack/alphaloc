@@ -13,6 +13,21 @@
 static const char *TAG = "config";
 static SemaphoreHandle_t s_config_mutex = NULL;
 
+static void config_set_str_default(char *dst, size_t dst_len, const char *src)
+{
+  if (!dst || dst_len == 0)
+  {
+    return;
+  }
+  if (!src)
+  {
+    dst[0] = '\0';
+    return;
+  }
+  strncpy(dst, src, dst_len - 1);
+  dst[dst_len - 1] = '\0';
+}
+
 void config_set_defaults(app_config_t *cfg)
 {
   memset(cfg, 0, sizeof(*cfg));
@@ -22,13 +37,50 @@ void config_set_defaults(app_config_t *cfg)
   cfg->ble_passkey = 123456;
   cfg->tz_offset_min = 60;
   cfg->dst_offset_min = 60;
-  strncpy(cfg->camera_name_prefix, "SonyA7",
-          sizeof(cfg->camera_name_prefix) - 1);
+#ifdef ALPHALOC_DEFAULT_CAMERA_NAME_PREFIX
+  config_set_str_default(cfg->camera_name_prefix,
+                         sizeof(cfg->camera_name_prefix),
+                         ALPHALOC_DEFAULT_CAMERA_NAME_PREFIX);
+#else
+  config_set_str_default(cfg->camera_name_prefix,
+                         sizeof(cfg->camera_name_prefix), "SonyA7");
+#endif
+
+#ifdef ALPHALOC_DEFAULT_CAMERA_MAC_PREFIX
+  config_set_str_default(cfg->camera_mac_prefix,
+                         sizeof(cfg->camera_mac_prefix),
+                         ALPHALOC_DEFAULT_CAMERA_MAC_PREFIX);
+#else
   cfg->camera_mac_prefix[0] = '\0';
-  strncpy(cfg->ap_ssid, "AlphaLoc", sizeof(cfg->ap_ssid) - 1);
-  strncpy(cfg->ap_pass, "alphaloc1234", sizeof(cfg->ap_pass) - 1);
-  strncpy(cfg->wifi_ssid, "WiFi", sizeof(cfg->wifi_ssid) - 1);
-  strncpy(cfg->wifi_pass, "changeme", sizeof(cfg->wifi_pass) - 1);
+#endif
+
+#ifdef ALPHALOC_DEFAULT_AP_SSID
+  config_set_str_default(cfg->ap_ssid, sizeof(cfg->ap_ssid),
+                         ALPHALOC_DEFAULT_AP_SSID);
+#else
+  config_set_str_default(cfg->ap_ssid, sizeof(cfg->ap_ssid), "AlphaLoc");
+#endif
+
+#ifdef ALPHALOC_DEFAULT_AP_PASS
+  config_set_str_default(cfg->ap_pass, sizeof(cfg->ap_pass),
+                         ALPHALOC_DEFAULT_AP_PASS);
+#else
+  config_set_str_default(cfg->ap_pass, sizeof(cfg->ap_pass), "alphaloc1234");
+#endif
+
+#ifdef ALPHALOC_DEFAULT_WIFI_SSID
+  config_set_str_default(cfg->wifi_ssid, sizeof(cfg->wifi_ssid),
+                         ALPHALOC_DEFAULT_WIFI_SSID);
+#else
+  config_set_str_default(cfg->wifi_ssid, sizeof(cfg->wifi_ssid), "WiFi");
+#endif
+
+#ifdef ALPHALOC_DEFAULT_WIFI_PASS
+  config_set_str_default(cfg->wifi_pass, sizeof(cfg->wifi_pass),
+                         ALPHALOC_DEFAULT_WIFI_PASS);
+#else
+  config_set_str_default(cfg->wifi_pass, sizeof(cfg->wifi_pass), "changeme");
+#endif
 }
 
 static void config_read_str(nvs_handle_t nvs, const char *key, char *out,

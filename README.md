@@ -152,6 +152,25 @@ You can use a generic BLE app (like nRF Connect) to write to the configuration s
 | Camera Connected    | `...0F007EA1`         | R   | String (0/1)    | BLE camera link active |
 | Camera Bonded       | `...10007EA1`         | R   | String (0/1)    | Link bonded (after pairing) |
 
+#### Build-Time Secrets (Recommended)
+
+If you want to keep WiFi credentials and camera filters out of git, place them in `platformio.secrets.ini` and keep the file ignored. The build merges these flags into every environment via `platformio.ini`.
+
+Example `platformio.secrets.ini` with all supported defaults:
+
+```ini
+[secrets]
+build_flags =
+  -DALPHALOC_DEFAULT_WIFI_SSID="\"MyWifi\""
+  -DALPHALOC_DEFAULT_WIFI_PASS="\"MyPass\""
+  -DALPHALOC_DEFAULT_AP_SSID="\"AlphaLoc\""
+  -DALPHALOC_DEFAULT_AP_PASS="\"AlphaLocPass\""
+  -DALPHALOC_DEFAULT_CAMERA_NAME_PREFIX="\"SonyA7\""
+  -DALPHALOC_DEFAULT_CAMERA_MAC_PREFIX="\"AA:BB:CC\""
+```
+
+These values are used as defaults on first boot (or after a factory reset) and can still be changed later via the WiFi or BLE config UIs.
+
 ## BLE Client Details (Camera Link)
 
 AlphaLoc acts as a BLE client to Sony cameras
