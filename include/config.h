@@ -16,8 +16,8 @@ typedef struct
   char camera_name_prefix[CONFIG_STR_MAX_32];
   char camera_mac_prefix[CONFIG_STR_MAX_18];
   uint32_t ble_passkey;
-  uint16_t tz_offset_min;
-  uint16_t dst_offset_min;
+  int16_t tz_offset_min;
+  int16_t dst_offset_min;
   char wifi_ssid[CONFIG_STR_MAX_32];
   char wifi_pass[CONFIG_STR_MAX_64];
   char ap_ssid[CONFIG_STR_MAX_32];
@@ -25,7 +25,10 @@ typedef struct
 } app_config_t;
 
 void config_set_defaults(app_config_t *cfg);
+void config_validate(app_config_t *cfg);
 bool config_load(app_config_t *cfg);
 bool config_save(const app_config_t *cfg);
+bool config_apply(app_config_t *cfg, const app_config_t *new_cfg);
+bool config_get_snapshot(const app_config_t *cfg, app_config_t *out);
 
 #endif

@@ -91,16 +91,30 @@ static void copy_str_field(char *dst, size_t dst_len, const char *src, size_t sr
   dst[copy_len] = '\0';
 }
 
-static bool parse_u16_field(const char *buf, uint16_t *out) {
+static bool parse_i16_field(const char *buf, int16_t min, int16_t max,
+                            int16_t *out) {
+  if (buf == NULL || buf[0] == '\0') {
+    return false;
+  }
+  char *end = NULL;
+  long val = strtol(buf, &end, 10);
+  if (end == buf || *end != '\0' || val < min || val > max) {
+    return false;
+  }
+  *out = (int16_t)val;
+  return true;
+}
+
+static bool parse_u32_field(const char *buf, uint32_t max, uint32_t *out) {
   if (buf == NULL || buf[0] == '\0') {
     return false;
   }
   char *end = NULL;
   unsigned long val = strtoul(buf, &end, 10);
-  if (end == buf || *end != '\0' || val > 1440) {
+  if (end == buf || *end != '\0' || val > max) {
     return false;
   }
-  *out = (uint16_t)val;
+  *out = (uint32_t)val;
   return true;
 }
 
@@ -111,50 +125,57 @@ static int gatt_access_cb(uint16_t conn_handle, uint16_t attr_handle,
   field_id_t field = (field_id_t)(intptr_t)arg;
   char buf[CONFIG_STR_MAX_64] = {0};
   gps_status_t status;
+  app_config_t cfg;
+  if (!config_get_snapshot(s_cfg, &cfg)) {
+    cfg = *s_cfg;
+    config_validate(&cfg);
+  }
 
   if (ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR) {
     const char *value = "";
-    char num_buf[8];
+    char num_buf[16];
     switch (field) {
       case FIELD_CAM_NAME:
-        value = s_cfg->camera_name_prefix;
+        value = cfg.camera_name_prefix;
         break;
       case FIELD_CAM_MAC:
-        value = s_cfg->camera_mac_prefix;
+        value = cfg.camera_mac_prefix;
         break;
       case FIELD_TZ_OFF:
-        snprintf(num_buf, sizeof(num_buf), "%u", s_cfg->tz_offset_min);
+        snprintf(num_buf, sizeof(num_buf), "%d", (int)cfg.tz_offset_min);
         value = num_buf;
         break;
       case FIELD_DST_OFF:
-        snprintf(num_buf, sizeof(num_buf), "%u", s_cfg->dst_offset_min);
+        snprintf(num_buf, sizeof(num_buf), "%d", (int)cfg.dst_offset_min);
         value = num_buf;
         break;
       case FIELD_WIFI_SSID:
-        value = s_cfg->wifi_ssid;
+        value = cfg.wifi_ssid;
         break;
       case FIELD_WIFI_PASS:
-        value = s_cfg->wifi_pass;
+        value = cfg.wifi_pass;
         break;
       case FIELD_AP_SSID:
-        value = s_cfg->ap_ssid;
+        value = cfg.ap_ssid;
         break;
       case FIELD_AP_PASS:
-        value = s_cfg->ap_pass;
+        value = cfg.ap_pass;
         break;
       case FIELD_MAX_GPS_AGE:
-        snprintf(num_buf, sizeof(num_buf), "%u", (unsigned)s_cfg->max_gps_age_s);
+        snprintf(num_buf, sizeof(num_buf), "%u", (unsigned)cfg.max_gps_age_s);
         value = num_buf;
         break;
       case FIELD_STATUS_GPS_LOCK:
         if (gps_get_status(&status)) {
-          snprintf(num_buf, sizeof(num_buf), "%u", status.has_lock ? 1 : 0);
+          snprintf(num_buf, sizeof(num_buf), "%u",
+                   (unsigned)(status.has_lock ? 1 : 0));
           value = num_buf;
         }
         break;
       case FIELD_STATUS_GPS_SATS:
         if (gps_get_status(&status)) {
-          snprintf(num_buf, sizeof(num_buf), "%u", status.satellites);
+          snprintf(num_buf, sizeof(num_buf), "%u",
+                   (unsigned)status.satellites);
           value = num_buf;
         }
         break;
@@ -165,11 +186,13 @@ static int gatt_access_cb(uint16_t conn_handle, uint16_t attr_handle,
         }
         break;
       case FIELD_STATUS_CAM_CONN:
-        snprintf(num_buf, sizeof(num_buf), "%u", ble_client_is_connected() ? 1 : 0);
+        snprintf(num_buf, sizeof(num_buf), "%u",
+                 (unsigned)(ble_client_is_connected() ? 1 : 0));
         value = num_buf;
         break;
       case FIELD_STATUS_CAM_BOND:
-        snprintf(num_buf, sizeof(num_buf), "%u", ble_client_is_bonded() ? 1 : 0);
+        snprintf(num_buf, sizeof(num_buf), "%u",
+                 (unsigned)(ble_client_is_bonded() ? 1 : 0));
         value = num_buf;
         break;
       default:
@@ -186,45 +209,45 @@ static int gatt_access_cb(uint16_t conn_handle, uint16_t attr_handle,
 
     switch (field) {
       case FIELD_CAM_NAME:
-        copy_str_field(s_cfg->camera_name_prefix, sizeof(s_cfg->camera_name_prefix), buf, strlen(buf));
+        copy_str_field(cfg.camera_name_prefix, sizeof(cfg.camera_name_prefix), buf, strlen(buf));
         break;
       case FIELD_CAM_MAC:
-        copy_str_field(s_cfg->camera_mac_prefix, sizeof(s_cfg->camera_mac_prefix), buf, strlen(buf));
+        copy_str_field(cfg.camera_mac_prefix, sizeof(cfg.camera_mac_prefix), buf, strlen(buf));
         break;
       case FIELD_TZ_OFF: {
-        uint16_t tz;
-        if (!parse_u16_field(buf, &tz)) {
+        int16_t tz;
+        if (!parse_i16_field(buf, -1440, 1440, &tz)) {
           return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
         }
-        s_cfg->tz_offset_min = tz;
+        cfg.tz_offset_min = tz;
         break;
       }
       case FIELD_DST_OFF: {
-        uint16_t dst;
-        if (!parse_u16_field(buf, &dst)) {
+        int16_t dst;
+        if (!parse_i16_field(buf, -1440, 1440, &dst)) {
           return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
         }
-        s_cfg->dst_offset_min = dst;
+        cfg.dst_offset_min = dst;
         break;
       }
       case FIELD_WIFI_SSID:
-        copy_str_field(s_cfg->wifi_ssid, sizeof(s_cfg->wifi_ssid), buf, strlen(buf));
+        copy_str_field(cfg.wifi_ssid, sizeof(cfg.wifi_ssid), buf, strlen(buf));
         break;
       case FIELD_WIFI_PASS:
-        copy_str_field(s_cfg->wifi_pass, sizeof(s_cfg->wifi_pass), buf, strlen(buf));
+        copy_str_field(cfg.wifi_pass, sizeof(cfg.wifi_pass), buf, strlen(buf));
         break;
       case FIELD_AP_SSID:
-        copy_str_field(s_cfg->ap_ssid, sizeof(s_cfg->ap_ssid), buf, strlen(buf));
+        copy_str_field(cfg.ap_ssid, sizeof(cfg.ap_ssid), buf, strlen(buf));
         break;
       case FIELD_AP_PASS:
-        copy_str_field(s_cfg->ap_pass, sizeof(s_cfg->ap_pass), buf, strlen(buf));
+        copy_str_field(cfg.ap_pass, sizeof(cfg.ap_pass), buf, strlen(buf));
         break;
       case FIELD_MAX_GPS_AGE: {
-        uint16_t max_age = 0;
-        if (!parse_u16_field(buf, &max_age)) {
+        uint32_t max_age = 0;
+        if (!parse_u32_field(buf, 86400, &max_age)) {
           return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
         }
-        s_cfg->max_gps_age_s = max_age;
+        cfg.max_gps_age_s = max_age;
         break;
       }
       case FIELD_STATUS_GPS_LOCK:
@@ -237,8 +260,7 @@ static int gatt_access_cb(uint16_t conn_handle, uint16_t attr_handle,
         return BLE_ATT_ERR_UNLIKELY;
     }
 
-    config_save(s_cfg);
-    return 0;
+    return config_apply(s_cfg, &cfg) ? 0 : BLE_ATT_ERR_UNLIKELY;
   }
 
   return BLE_ATT_ERR_UNLIKELY;
@@ -340,16 +362,24 @@ void ble_config_server_start(void) {
   fields.uuids128 = &svc_uuid;
   fields.num_uuids128 = 1;
   fields.uuids128_is_complete = 1;
-  ble_gap_adv_set_fields(&fields);
+  int rc = ble_gap_adv_set_fields(&fields);
+  if (rc != 0) {
+    ESP_LOGW(TAG, "Adv fields set failed: %d", rc);
+    return;
+  }
 
   struct ble_gap_adv_params adv_params = {0};
   adv_params.conn_mode = BLE_GAP_CONN_MODE_UND;
   adv_params.disc_mode = BLE_GAP_DISC_MODE_GEN;
 
   uint8_t addr_type;
-  ble_hs_id_infer_auto(0, &addr_type);
-  int rc = ble_gap_adv_start(addr_type, NULL, BLE_HS_FOREVER, &adv_params,
-                             ble_client_gap_event_cb, NULL);
+  rc = ble_hs_id_infer_auto(0, &addr_type);
+  if (rc != 0) {
+    ESP_LOGW(TAG, "Address type infer failed: %d", rc);
+    return;
+  }
+  rc = ble_gap_adv_start(addr_type, NULL, BLE_HS_FOREVER, &adv_params,
+                         ble_client_gap_event_cb, NULL);
   if (rc != 0) {
     ESP_LOGW(TAG, "Adv start failed: %d", rc);
   } else {
@@ -360,7 +390,10 @@ void ble_config_server_start(void) {
 void ble_config_server_stop(void) {
   s_adv_requested = false;
   if (s_synced) {
-    ble_gap_adv_stop();
+    int rc = ble_gap_adv_stop();
+    if (rc != 0) {
+      ESP_LOGW(TAG, "Adv stop failed: %d", rc);
+    }
   }
   ESP_LOGI(TAG, "BLE config stopped");
 }

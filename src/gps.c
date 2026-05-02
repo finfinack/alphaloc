@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "driver/uart.h"
@@ -56,6 +57,106 @@ static gps_config_t s_cfg;
 static gps_status_t s_status;
 static int64_t s_last_no_fix_log_us;
 
+static int hex_value(char c) {
+  if (c >= '0' && c <= '9') {
+    return c - '0';
+  }
+  if (c >= 'A' && c <= 'F') {
+    return c - 'A' + 10;
+  }
+  if (c >= 'a' && c <= 'f') {
+    return c - 'a' + 10;
+  }
+  return -1;
+}
+
+static bool nmea_checksum_valid(const char *line) {
+  if (!line || line[0] != '$') {
+    return false;
+  }
+  const char *star = strchr(line, '*');
+  if (!star || !star[1] || !star[2] || star[3] != '\0') {
+    return false;
+  }
+  int high = hex_value(star[1]);
+  int low = hex_value(star[2]);
+  if (high < 0 || low < 0) {
+    return false;
+  }
+  uint8_t checksum = 0;
+  for (const char *p = line + 1; p < star; ++p) {
+    checksum ^= (uint8_t)*p;
+  }
+  return checksum == (uint8_t)((high << 4) | low);
+}
+
+static bool parse_int_range(const char *value, int min, int max, int *out) {
+  if (!value || value[0] == '\0') {
+    return false;
+  }
+  char *end = NULL;
+  long parsed = strtol(value, &end, 10);
+  if (end == value || *end != '\0' || parsed < min || parsed > max) {
+    return false;
+  }
+  *out = (int)parsed;
+  return true;
+}
+
+static bool parse_time_hms(const char *value, uint8_t *hour, uint8_t *minute,
+                           uint8_t *second) {
+  if (!value || strlen(value) < 6) {
+    return false;
+  }
+  for (int i = 0; i < 6; ++i) {
+    if (!isdigit((unsigned char)value[i])) {
+      return false;
+    }
+  }
+  if (value[6] != '\0' && value[6] != '.') {
+    return false;
+  }
+  int hh = (value[0] - '0') * 10 + (value[1] - '0');
+  int mm = (value[2] - '0') * 10 + (value[3] - '0');
+  int ss = (value[4] - '0') * 10 + (value[5] - '0');
+  if (hh > 23 || mm > 59 || ss > 60) {
+    return false;
+  }
+  *hour = (uint8_t)hh;
+  *minute = (uint8_t)mm;
+  *second = (uint8_t)ss;
+  return true;
+}
+
+static bool date_valid(int year, int month, int day) {
+  static const uint8_t days_in_month[] = {31, 28, 31, 30, 31, 30,
+                                          31, 31, 30, 31, 30, 31};
+  if (year < 2000 || year > 2099 || month < 1 || month > 12 || day < 1) {
+    return false;
+  }
+  int max_day = days_in_month[month - 1];
+  bool leap = ((year % 4) == 0 && ((year % 100) != 0 || (year % 400) == 0));
+  if (month == 2 && leap) {
+    max_day = 29;
+  }
+  return day <= max_day;
+}
+
+static int split_csv(char *buf, const char *fields[], int max_fields) {
+  int count = 0;
+  char *p = buf;
+  while (count < max_fields) {
+    fields[count++] = p;
+    char *comma = strchr(p, ',');
+    if (!comma) {
+      break;
+    }
+    *comma = '\0';
+    p = comma + 1;
+  }
+  return count;
+}
+
 static void update_status_gga(const char *line) {
   // GGA fields: 6=fix quality, 7=satellites, 8=HDOP
   char buf[GPS_LINE_MAX];
@@ -63,19 +164,17 @@ static void update_status_gga(const char *line) {
   buf[sizeof(buf) - 1] = '\0';
 
   const char *fields[12] = {0};
-  int field_count = 0;
-  char *saveptr = NULL;
-  char *token = strtok_r(buf, ",", &saveptr);
-  while (token && field_count < 12) {
-    fields[field_count++] = token;
-    token = strtok_r(NULL, ",", &saveptr);
-  }
+  int field_count = split_csv(buf, fields, 12);
   if (field_count < 9) {
     return;
   }
 
-  int fix_quality = atoi(fields[6]);
-  int sats = atoi(fields[7]);
+  int fix_quality = 0;
+  int sats = 0;
+  if (!parse_int_range(fields[6], 0, 8, &fix_quality) ||
+      !parse_int_range(fields[7], 0, 64, &sats)) {
+    return;
+  }
   if (xSemaphoreTake(s_fix_mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
     s_status.has_lock = (fix_quality > 0);
     s_status.satellites = (uint8_t)sats;
@@ -89,14 +188,47 @@ static void update_status_gga(const char *line) {
   }
 }
 
-static double parse_deg_min(const char *value) {
+static bool parse_deg_min(const char *value, const char *hemisphere,
+                          bool is_latitude, double *out) {
   if (value == NULL || value[0] == '\0') {
-    return 0.0;
+    return false;
   }
-  double v = strtod(value, NULL);
+  char *end = NULL;
+  double v = strtod(value, &end);
+  if (end == value || *end != '\0') {
+    return false;
+  }
   double deg = floor(v / 100.0);
   double min = v - (deg * 100.0);
-  return deg + (min / 60.0);
+  if (min < 0.0 || min >= 60.0) {
+    return false;
+  }
+  double max_deg = is_latitude ? 90.0 : 180.0;
+  if (deg < 0.0 || deg > max_deg) {
+    return false;
+  }
+  double parsed = deg + (min / 60.0);
+  if (parsed > max_deg) {
+    return false;
+  }
+  if (hemisphere == NULL || hemisphere[0] == '\0' || hemisphere[1] != '\0') {
+    return false;
+  }
+  if (is_latitude) {
+    if (hemisphere[0] == 'S') {
+      parsed = -parsed;
+    } else if (hemisphere[0] != 'N') {
+      return false;
+    }
+  } else {
+    if (hemisphere[0] == 'W') {
+      parsed = -parsed;
+    } else if (hemisphere[0] != 'E') {
+      return false;
+    }
+  }
+  *out = parsed;
+  return true;
 }
 
 static bool parse_rmc(const char *line, gps_fix_t *out) {
@@ -105,13 +237,7 @@ static bool parse_rmc(const char *line, gps_fix_t *out) {
   buf[sizeof(buf) - 1] = '\0';
 
   const char *fields[20] = {0};
-  int field_count = 0;
-  char *saveptr = NULL;
-  char *token = strtok_r(buf, ",", &saveptr);
-  while (token && field_count < 20) {
-    fields[field_count++] = token;
-    token = strtok_r(NULL, ",", &saveptr);
-  }
+  int field_count = split_csv(buf, fields, 20);
 
   if (field_count < 10) {
     return false;
@@ -130,18 +256,16 @@ static bool parse_rmc(const char *line, gps_fix_t *out) {
   out->second = 0;
   bool time_ok = false;
   if (fields[1][0] != '\0') {
-    int hh = 0, mm = 0, ss = 0;
-    if (sscanf(fields[1], "%2d%2d%2d", &hh, &mm, &ss) == 3) {
-      out->hour = (uint8_t)hh;
-      out->minute = (uint8_t)mm;
-      out->second = (uint8_t)ss;
+    if (parse_time_hms(fields[1], &out->hour, &out->minute, &out->second)) {
       time_ok = true;
     }
   }
 
   if (fields[9][0] != '\0') {
     int dd = 0, mm = 0, yy = 0;
-    if (sscanf(fields[9], "%2d%2d%2d", &dd, &mm, &yy) == 3) {
+    char extra = '\0';
+    if (sscanf(fields[9], "%2d%2d%2d%c", &dd, &mm, &yy, &extra) == 3 &&
+        date_valid(2000 + yy, mm, dd)) {
       out->day = (uint8_t)dd;
       out->month = (uint8_t)mm;
       out->year = (uint16_t)(2000 + yy);
@@ -149,14 +273,11 @@ static bool parse_rmc(const char *line, gps_fix_t *out) {
   }
   out->time_valid = time_ok;
 
-  double lat = parse_deg_min(fields[3]);
-  if (fields[4][0] == 'S') {
-    lat = -lat;
-  }
-
-  double lon = parse_deg_min(fields[5]);
-  if (fields[6][0] == 'W') {
-    lon = -lon;
+  double lat = 0.0;
+  double lon = 0.0;
+  if (!parse_deg_min(fields[3], fields[4], true, &lat) ||
+      !parse_deg_min(fields[5], fields[6], false, &lon)) {
+    return false;
   }
 
   out->lat_deg = lat;
@@ -189,8 +310,9 @@ static void update_fix(const gps_fix_t *fix, bool has_fix) {
         s_latest_fix.day = fix->day;
       }
       VLOGI("Fix lat=%.7f lon=%.7f time=%04u-%02u-%02u %02u:%02u:%02u",
-            fix->lat_deg, fix->lon_deg, fix->year, fix->month, fix->day,
-            fix->hour, fix->minute, fix->second);
+            fix->lat_deg, fix->lon_deg, (unsigned)fix->year,
+            (unsigned)fix->month, (unsigned)fix->day, (unsigned)fix->hour,
+            (unsigned)fix->minute, (unsigned)fix->second);
     } else {
       s_latest_fix.valid = false;
       int64_t now = esp_timer_get_time();
@@ -229,13 +351,7 @@ static bool parse_zda(const char *line, gps_fix_t *out, bool *time_ok,
   buf[sizeof(buf) - 1] = '\0';
 
   const char *fields[8] = {0};
-  int field_count = 0;
-  char *saveptr = NULL;
-  char *token = strtok_r(buf, ",", &saveptr);
-  while (token && field_count < 8) {
-    fields[field_count++] = token;
-    token = strtok_r(NULL, ",", &saveptr);
-  }
+  int field_count = split_csv(buf, fields, 8);
 
   if (field_count < 5) {
     return false;
@@ -244,20 +360,17 @@ static bool parse_zda(const char *line, gps_fix_t *out, bool *time_ok,
   *time_ok = false;
   *date_ok = false;
   if (fields[1][0] != '\0') {
-    int hh = 0, mm = 0, ss = 0;
-    if (sscanf(fields[1], "%2d%2d%2d", &hh, &mm, &ss) == 3) {
-      out->hour = (uint8_t)hh;
-      out->minute = (uint8_t)mm;
-      out->second = (uint8_t)ss;
+    if (parse_time_hms(fields[1], &out->hour, &out->minute, &out->second)) {
       *time_ok = true;
     }
   }
 
   if (fields[2][0] != '\0' && fields[3][0] != '\0' && fields[4][0] != '\0') {
     int dd = 0, mm = 0, yyyy = 0;
-    if (sscanf(fields[2], "%2d", &dd) == 1 &&
-        sscanf(fields[3], "%2d", &mm) == 1 &&
-        sscanf(fields[4], "%4d", &yyyy) == 1) {
+    if (parse_int_range(fields[2], 1, 31, &dd) &&
+        parse_int_range(fields[3], 1, 12, &mm) &&
+        parse_int_range(fields[4], 2000, 2099, &yyyy) &&
+        date_valid(yyyy, mm, dd)) {
       out->day = (uint8_t)dd;
       out->month = (uint8_t)mm;
       out->year = (uint16_t)yyyy;
@@ -303,7 +416,7 @@ static void gps_task(void *arg) {
         line_buf[line_len] = '\0';
 
         // Validate minimum NMEA sentence length before parsing
-        if (line_len >= 7 && line_buf[0] == '$') {
+        if (line_len >= 10 && nmea_checksum_valid(line_buf)) {
           NMEALOGI("NMEA: %s", line_buf);
           if (strncmp(line_buf, "$GPGGA", 6) == 0 ||
               strncmp(line_buf, "$GNGGA", 6) == 0) {
@@ -342,8 +455,16 @@ static void gps_task(void *arg) {
 }
 
 void gps_init(const gps_config_t *cfg) {
+  if (!cfg) {
+    ESP_LOGE(TAG, "GPS config is null");
+    return;
+  }
   s_cfg = *cfg;
   s_fix_mutex = xSemaphoreCreateMutex();
+  if (s_fix_mutex == NULL) {
+    ESP_LOGE(TAG, "Failed to create GPS mutex");
+    return;
+  }
   memset(&s_latest_fix, 0, sizeof(s_latest_fix));
   memset(&s_status, 0, sizeof(s_status));
   s_last_no_fix_log_us = 0;
@@ -387,11 +508,18 @@ void gps_init(const gps_config_t *cfg) {
                                UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
 
   // Bump stack to avoid overflow when parsing/logging NMEA sentences.
-  xTaskCreate(gps_task, "gps_task", 6144, NULL, 5, NULL);
+  BaseType_t ret = xTaskCreate(gps_task, "gps_task", 6144, NULL, 5, NULL);
+  if (ret != pdPASS) {
+    ESP_LOGE(TAG, "Failed to create GPS task");
+    return;
+  }
   ESP_LOGI(TAG, "GPS task started");
 }
 
 bool gps_get_latest(gps_fix_t *out_fix) {
+  if (!out_fix || !s_fix_mutex) {
+    return false;
+  }
   if (xSemaphoreTake(s_fix_mutex, pdMS_TO_TICKS(50)) != pdTRUE) {
     return false;
   }
@@ -401,6 +529,9 @@ bool gps_get_latest(gps_fix_t *out_fix) {
 }
 
 bool gps_get_status(gps_status_t *out_status) {
+  if (!out_status || !s_fix_mutex) {
+    return false;
+  }
   if (xSemaphoreTake(s_fix_mutex, pdMS_TO_TICKS(50)) != pdTRUE) {
     return false;
   }

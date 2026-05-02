@@ -17,12 +17,14 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 
 static const char *TAG = "battery";
 
 static battery_status_t s_status;
 static bool s_inited = false;
+static SemaphoreHandle_t s_status_mutex = NULL;
 static i2c_port_t s_port = I2C_NUM_0;
 #ifdef ALPHALOC_BATTERY_I2C_POWER_PIN
 static const int s_i2c_power_pin = ALPHALOC_BATTERY_I2C_POWER_PIN;
@@ -82,11 +84,18 @@ static bool read_lc709203f(float *out_voltage, float *out_percent) {
 
 static void update_status(battery_monitor_t monitor, float voltage,
                           float percent, bool valid) {
+  if (s_status_mutex &&
+      xSemaphoreTake(s_status_mutex, pdMS_TO_TICKS(100)) != pdTRUE) {
+    return;
+  }
   s_status.valid = valid;
   s_status.voltage_v = voltage;
   s_status.percent = percent;
   s_status.monitor = monitor;
   s_status.last_update_us = esp_timer_get_time();
+  if (s_status_mutex) {
+    xSemaphoreGive(s_status_mutex);
+  }
 }
 
 bool battery_init(void) {
@@ -95,6 +104,13 @@ bool battery_init(void) {
   }
 
   memset(&s_status, 0, sizeof(s_status));
+  if (s_status_mutex == NULL) {
+    s_status_mutex = xSemaphoreCreateMutex();
+  }
+  if (s_status_mutex == NULL) {
+    ESP_LOGW(TAG, "Battery status mutex allocation failed");
+    return false;
+  }
 
 #ifndef ALPHALOC_BATTERY_I2C_PORT
 #define ALPHALOC_BATTERY_I2C_PORT 0
@@ -129,11 +145,15 @@ bool battery_init(void) {
   esp_err_t err = i2c_param_config(s_port, &cfg);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "I2C param config failed: %s", esp_err_to_name(err));
+    vSemaphoreDelete(s_status_mutex);
+    s_status_mutex = NULL;
     return false;
   }
   err = i2c_driver_install(s_port, I2C_MODE_MASTER, 0, 0, 0);
   if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
     ESP_LOGW(TAG, "I2C driver install failed: %s", esp_err_to_name(err));
+    vSemaphoreDelete(s_status_mutex);
+    s_status_mutex = NULL;
     return false;
   }
 
@@ -190,8 +210,16 @@ bool battery_get_status(battery_status_t *out) {
   if (!out) {
     return false;
   }
+  if (s_status_mutex &&
+      xSemaphoreTake(s_status_mutex, pdMS_TO_TICKS(100)) != pdTRUE) {
+    return false;
+  }
   *out = s_status;
-  return s_status.valid;
+  bool valid = s_status.valid;
+  if (s_status_mutex) {
+    xSemaphoreGive(s_status_mutex);
+  }
+  return valid;
 }
 
 #else

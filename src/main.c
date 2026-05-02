@@ -7,7 +7,11 @@
 #include "config.h"
 #include "driver/gpio.h"
 #include "driver/uart.h"
+#include "esp_err.h"
 #include "esp_log.h"
+#if CONFIG_PM_ENABLE
+#include "esp_pm.h"
+#endif
 #include "esp_rom_sys.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -48,6 +52,10 @@
 
 #ifndef ALPHALOC_FAKE_GPS
 #define ALPHALOC_FAKE_GPS 0
+#endif
+
+#ifndef ALPHALOC_LIGHT_SLEEP
+#define ALPHALOC_LIGHT_SLEEP 0
 #endif
 
 #define FAKE_LAT_DEG 48.137154
@@ -92,12 +100,18 @@ static bool get_location_for_send(gps_fix_t *out_fix) {
 
 static void focus_update_cb(void *ctx) {
   app_config_t *cfg = (app_config_t *)ctx;
+  app_config_t cfg_snapshot;
+  if (!config_get_snapshot(cfg, &cfg_snapshot)) {
+    cfg_snapshot = *cfg;
+    config_validate(&cfg_snapshot);
+  }
   gps_fix_t fix;
   if (!get_location_for_send(&fix)) {
     return;
   }
   int64_t now = esp_timer_get_time();
-  if ((now - fix.last_fix_time_us) > (int64_t)cfg->max_gps_age_s * 1000000LL) {
+  if ((now - fix.last_fix_time_us) >
+      (int64_t)cfg_snapshot.max_gps_age_s * 1000000LL) {
     return;
   }
   ble_client_send_location(&fix);
@@ -106,20 +120,30 @@ static void focus_update_cb(void *ctx) {
 static void location_publisher_task(void *arg) {
   const app_config_t *cfg = (const app_config_t *)arg;
   while (true) {
+    app_config_t cfg_snapshot;
+    if (!config_get_snapshot(cfg, &cfg_snapshot)) {
+      cfg_snapshot = *cfg;
+      config_validate(&cfg_snapshot);
+    }
     gps_fix_t fix;
     if (get_location_for_send(&fix)) {
       int64_t now = esp_timer_get_time();
       if ((now - fix.last_fix_time_us) <=
-          (int64_t)cfg->max_gps_age_s * 1000000LL) {
+          (int64_t)cfg_snapshot.max_gps_age_s * 1000000LL) {
         ble_client_send_location(&fix);
       }
     }
-    vTaskDelay(pdMS_TO_TICKS(cfg->gps_interval_ms));
+    vTaskDelay(pdMS_TO_TICKS(cfg_snapshot.gps_interval_ms));
   }
 }
 
 static void config_window_task(void *arg) {
   app_config_t *cfg = (app_config_t *)arg;
+  app_config_t cfg_snapshot;
+  if (!config_get_snapshot(cfg, &cfg_snapshot)) {
+    cfg_snapshot = *cfg;
+    config_validate(&cfg_snapshot);
+  }
 #if ALPHALOC_BLE_CONFIG
   ble_config_server_start();
 #endif
@@ -127,8 +151,8 @@ static void config_window_task(void *arg) {
   wifi_web_start(cfg);
 #endif
   s_config_window_end_time_us =
-      esp_timer_get_time() + ((int64_t)cfg->config_window_s * 1000000LL);
-  vTaskDelay(pdMS_TO_TICKS(cfg->config_window_s * 1000));
+      esp_timer_get_time() + ((int64_t)cfg_snapshot.config_window_s * 1000000LL);
+  vTaskDelay(pdMS_TO_TICKS(cfg_snapshot.config_window_s * 1000ULL));
 #if ALPHALOC_BLE_CONFIG
   ble_config_server_stop();
 #endif
@@ -151,7 +175,7 @@ static void battery_task(void *arg) {
 
 #ifdef ALPHALOC_NEOPIXEL_PIN
 static void status_led_task(void *arg) {
-  const app_config_t *cfg = (const app_config_t *)arg;
+  (void)arg;
   const uint8_t brightness = 8;
   const TickType_t on_ms = pdMS_TO_TICKS(150);
   const TickType_t off_ms = pdMS_TO_TICKS(150);
@@ -237,9 +261,29 @@ void app_main(void) {
 #if CONFIG_PM_ENABLE
   // Configure automatic light sleep (Issue 3.4)
   esp_pm_config_t pm_config = {
-      .max_freq_mhz = 160, .min_freq_mhz = 40, .light_sleep_enable = true};
-  ESP_ERROR_CHECK(esp_pm_configure(&pm_config));
-  ESP_LOGI(TAG, "Power management: light sleep enabled");
+      .max_freq_mhz = 160,
+      .min_freq_mhz = 40,
+      .light_sleep_enable =
+#if CONFIG_FREERTOS_USE_TICKLESS_IDLE && ALPHALOC_LIGHT_SLEEP
+          true,
+#else
+          false,
+#endif
+  };
+  esp_err_t pm_err = esp_pm_configure(&pm_config);
+  if (pm_err == ESP_OK) {
+    ESP_LOGI(TAG, "Power management: light sleep %s",
+             pm_config.light_sleep_enable ? "enabled" : "disabled");
+  } else {
+    ESP_LOGW(TAG, "Power management configuration failed: %s",
+             esp_err_to_name(pm_err));
+  }
+#if !ALPHALOC_LIGHT_SLEEP
+  ESP_LOGI(TAG, "Automatic light sleep disabled for BLE camera reliability");
+#elif !CONFIG_FREERTOS_USE_TICKLESS_IDLE
+  ESP_LOGW(TAG, "Automatic light sleep disabled - enable "
+                "CONFIG_FREERTOS_USE_TICKLESS_IDLE");
+#endif
 #else
   ESP_LOGW(TAG, "Power management disabled in sdkconfig - enable "
                 "CONFIG_PM_ENABLE for light sleep");
@@ -271,9 +315,12 @@ void app_main(void) {
     ESP_LOGW(TAG,
              "NVS needs erase but factory reset flag not set; keeping data");
 #endif
+  } else if (err != ESP_OK) {
+    ESP_LOGE(TAG, "NVS init failed: %s", esp_err_to_name(err));
   }
 
   config_load(&s_cfg);
+  config_validate(&s_cfg);
 
   gps_config_t gps_cfg = {
       .uart_num = GPS_UART_NUM,
